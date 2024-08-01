@@ -1,0 +1,6 @@
+[submodule "idxd-config"]
+	path = idxd-config
+	url = git@github.com:neel-patel-1/idxd-config.git
+[submodule "qatlib"]
+	path = qatlib
+	url = git@github.com:neel-patel-1/qatlib.git

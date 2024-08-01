@@ -1,9 +1,11 @@
-IAA_INCLUDES = -I/home/n869p538/spr-accel-profiling/interrupt_qat_dc/idxd-config/test \
-	-I/home/n869p538/spr-accel-profiling/interrupt_qat_dc/idxd-config/test/algorithms
-IDXD_INCLUDES = -I/home/n869p538/spr-accel-profiling/interrupt_qat_dc/idxd-config
-ACCFG_INCLUDES = -I/home/n869p538/spr-accel-profiling/interrupt_qat_dc/idxd-config/accfg
-IAA_LIBS = -L/home/n869p538/spr-accel-profiling/interrupt_qat_dc/idxd-config/test -liaa -lz -lcrypto
-ACCFG_LIBS = -L/home/n869p538/spr-accel-profiling/interrupt_qat_dc/idxd-config/accfg/lib -laccel-config
+
+current_dir = $(shell pwd)
+IAA_INCLUDES = -I$(current_dir)/idxd-config/test \
+	-I$(current_dir)/idxd-config/test/algorithms
+IDXD_INCLUDES = -I$(current_dir)/idxd-config
+ACCFG_INCLUDES = -I$(current_dir)/idxd-config/accfg
+IAA_LIBS = -L$(current_dir)/idxd-config/test -liaa -lz -lcrypto
+ACCFG_LIBS = -L$(current_dir)/idxd-config/accfg/lib -laccel-config
 INCLUDES = -I./inc $(IAA_INCLUDES) $(ACCFG_INCLUDES) $(IDXD_INCLUDES)
 LIBS = -ldml $(IAA_LIBS) $(ACCFG_LIBS)
 
