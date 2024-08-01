@@ -1,6 +1,22 @@
 # APU-Gym: A framework for on-chip accelerator design space exploration
 * APUGym is used for the accelerator and gpcore profiling stage of bottleneck analysis for latency-critical / user-facing services.
 
+* Tree
+```
+three_phase.cpp
+traverse.cpp
+
+|--- src/
+|--- inc/
+|--- idxd-config
+  |--- test/libiaa.a
+|--- qatlib
+```
+
+### Build
+* build dependencies: `./build.sh`
+* build tests: `make -j`
+
 
 ### Latency/Offered Load of a GPCore/APU-Accelerated Request
 The goal of this workflow is to get a breakdown of the end-to-end execution of a request executing on a general-purpose core and compare it with the same request with part of the request offloaded to an accelerator.
