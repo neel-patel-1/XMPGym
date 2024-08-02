@@ -2,7 +2,6 @@
 #include "print_utils.h"
 #include "router_request_args.h"
 #include "iaa_offloads.h"
-#include "ch3_hash.h"
 #include "runners.h"
 #include "gpcore_compress.h"
 
@@ -17,320 +16,71 @@ extern "C" {
 #include "dsa_offloads.h"
 #include "submit.hpp"
 
-#include "probe_point.h"
-#include "filler_antagonist.h"
-#include "filler_hash.h"
-#include "posting_list.h"
-#include "wait.h"
-#include "payload_gen.h"
-#include "pointer_chase.h"
+#include "router.pb.h"
 
-int input_size = 16384;
-int host_buf_bytes_acc = input_size;
-int ax_buf_bytes_acc = 0;
-int stride = 64;
-
-
-void alloc_offload_serialized_access_args(
-  int total_requests,
-  timed_offload_request_args*** p_off_args,
-  ax_comp *comps,
-  uint64_t *ts0,
-  uint64_t *ts1,
-  uint64_t *ts2,
-  uint64_t *ts3
-){
-
-  timed_offload_request_args **off_args =
-    (timed_offload_request_args **)malloc(total_requests * sizeof(timed_offload_request_args *));
-
-  int num_nodes = input_size / sizeof(node);
-
-  for(int i = 0; i < total_requests; i++){
-    off_args[i] = (timed_offload_request_args *)malloc(sizeof(timed_offload_request_args));
-    off_args[i]->src_payload = (char *)create_random_chain(input_size); /* host buf to chase, does not get copied */
-    off_args[i]->dst_payload = (char *)malloc(input_size * sizeof(char));
-    /* write prefault the buffer */
-    for(int j = 0; j < input_size; j+=64){
-      off_args[i]->dst_payload[j] = j;
-    }
-    off_args[i]->aux_payload =
-      (char *)create_random_chain_starting_at(input_size,
-        (void **) (off_args[i]->dst_payload)); /* ax buf buf to chase after copy */
-    off_args[i]->src_size =  host_buf_bytes_acc; /* parameter describing number of bytes to access from host buf */
-    off_args[i]->dst_size = ax_buf_bytes_acc; /* parameter describing number of bytes to access from ax buf*/
-    off_args[i]->desc = (struct hw_desc *)malloc(sizeof(struct hw_desc));
-    off_args[i]->comp = &comps[i];
-    off_args[i]->ts0 = ts0;
-    off_args[i]->ts1 = ts1;
-    off_args[i]->ts2 = ts2;
-    off_args[i]->ts3 = ts3;
-    off_args[i]->id = i;
+static inline void pre_proc_fn(void *input, void *output, int size){
+  LOG_PRINT(LOG_DEBUG, "PreProc\n");
+  char *in = (char *)input;
+  char *out = (char *)output;
+  for(int i = 0; i < size; i++){
+    out[i] = in[i];
   }
-
-  *p_off_args = off_args;
 }
 
-void alloc_offload_linear_access_args(
-  int total_requests,
-  timed_offload_request_args*** p_off_args,
-  ax_comp *comps,
-  uint64_t *ts0,
-  uint64_t *ts1,
-  uint64_t *ts2,
-  uint64_t *ts3
-){
+void ser_buf(int bufsize){
+  router::RouterRequest req;
+  const char * pattern = "01234567";
+  std::string pattern_str((char *)&pattern, sizeof(pattern));
+  // generate a value buffer of bufsize
+  std::string val_string(pattern, pattern_str.size());
 
-  timed_offload_request_args **off_args =
-    (timed_offload_request_args **)malloc(total_requests * sizeof(timed_offload_request_args *));
-
-  for(int i = 0; i < total_requests; i++){
-    off_args[i] = (timed_offload_request_args *)malloc(sizeof(timed_offload_request_args));
-    off_args[i]->src_payload = (char *)malloc(input_size);
-    for(int j = 0; j < input_size; j+=64){
-      off_args[i]->src_payload[j] = j;
-    }
-    off_args[i]->dst_payload = (char *)malloc(input_size * sizeof(char));
-    for(int j = 0; j < input_size; j+=64){
-      off_args[i]->dst_payload[j] = j;
-    }
-    off_args[i]->src_size =  host_buf_bytes_acc; /* parameter describing number of bytes to access from host buf */
-    off_args[i]->dst_size = ax_buf_bytes_acc; /* parameter describing number of bytes to access from ax buf*/
-    off_args[i]->aux_size = stride; /* parameter notify the request of the stride*/
-    off_args[i]->desc = (struct hw_desc *)malloc(sizeof(struct hw_desc));
-    off_args[i]->comp = &comps[i];
-    off_args[i]->ts0 = ts0;
-    off_args[i]->ts1 = ts1;
-    off_args[i]->ts2 = ts2;
-    off_args[i]->ts3 = ts3;
-    off_args[i]->id = i;
+  while(val_string.size() < bufsize){
+    val_string += pattern_str;
   }
 
-  *p_off_args = off_args;
-}
+  LOG_PRINT(LOG_DEBUG, "ValString: %s Size: %ld\n", val_string.c_str(), val_string.size());
 
-void free_offload_linear_access_args(
-  int total_requests,
-  timed_offload_request_args*** p_off_args
-){
-  timed_offload_request_args **off_args = *p_off_args;
-  for(int i = 0; i < total_requests; i++){
-    free(off_args[i]->src_payload);
-    free(off_args[i]->dst_payload);
-    free(off_args[i]);
-  }
-  free(off_args);
-}
+  req.set_key("/region/cluster/foo:key|#|etc"); // key is 32B string, value gets bigger up to 2MB
 
-void free_offload_serialized_access_args(
-  int total_requests,
-  timed_offload_request_args*** p_off_args
-){
-  timed_offload_request_args **off_args = *p_off_args;
-  for(int i = 0; i < total_requests; i++){
-    free(off_args[i]->src_payload);
-    free(off_args[i]->dst_payload);
-    free(off_args[i]);
-  }
-  free(off_args);
-}
+  req.set_value(val_string);
 
-void blocking_offload_and_serial_access_stamped(fcontext_transfer_t arg){
-  timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
- void **host_pchase_st = (void **)args->src_payload;
- void **memcpy_src = (void **)args->aux_payload;
- void **ax_pchase_st = (void **)args->dst_payload;
- int num_pre_accesses = input_size / sizeof(void *);
- int num_ax_accesses = args->dst_size / sizeof(void *);
- int num_host_accesses = args->src_size / sizeof(void *);
+  req.set_operation(0);
 
-  int id = args->id;
-  uint64_t *ts0 = args->ts0;
-  uint64_t *ts1 = args->ts1;
-  uint64_t *ts2 = args->ts2;
-  uint64_t *ts3 = args->ts3;
-  ax_comp *comp = args->comp;
-  struct hw_desc *desc = args->desc;
-
-
- /*access the whole host buf to start*/
-  ts0[id] = sampleCoderdtsc();
-  chase_pointers(host_pchase_st, num_pre_accesses);
-
-  ts1[id] = sampleCoderdtsc();
-  prepare_dsa_memcpy_desc_with_preallocated_comp(
-    desc, (uint64_t)memcpy_src, (uint64_t)ax_pchase_st,
-    (uint64_t)args->comp, (uint64_t)input_size
-  );
-  blocking_dsa_submit(dsa, desc);
-  spin_on(comp);
-
-  ts2[id] = sampleCoderdtsc();
-  LOG_PRINT(LOG_DEBUG, "%d HostAccesses\n" , num_host_accesses);
-  chase_pointers(host_pchase_st, num_host_accesses);
-  LOG_PRINT(LOG_DEBUG, "%d AXAccesses\n" , num_ax_accesses);
-  chase_pointers(ax_pchase_st, num_ax_accesses);
-
-
-  ts3[id] = sampleCoderdtsc();
-
-  requests_completed ++;
-  fcontext_swap(arg.prev_context, NULL);
+  // copy wire formatted ser'd buf to the output
 
 }
 
-void yielding_offload_and_linear_access_stamped(fcontext_transfer_t arg){
-  timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
- char *pre_buf = (char *)args->src_payload;
- char *ax_dst_buf = (char *)args->dst_payload;
- int pre_buf_size = input_size ;
- int ax_bytes_accessed = args->dst_size;
- int host_bytes_accessed = args->src_size;
-
-  int id = args->id;
-  uint64_t *ts0 = args->ts0;
-  uint64_t *ts1 = args->ts1;
-  uint64_t *ts2 = args->ts2;
-  uint64_t *ts3 = args->ts3;
-  ax_comp *comp = args->comp;
-  struct hw_desc *desc = args->desc;
-
-
- /*access the whole host buf to start*/
-  ts0[id] = sampleCoderdtsc();
-
-  for(int i=0; i < pre_buf_size; i+=64){
-    pre_buf[i] = i;
-  }
-
-  prepare_dsa_memcpy_desc_with_preallocated_comp(
-    desc, (uint64_t)pre_buf, (uint64_t)ax_dst_buf,
-    (uint64_t)args->comp, (uint64_t)input_size
-  );
-  blocking_dsa_submit(dsa, desc);
-
-  ts1[id] = sampleCoderdtsc();
-
-  fcontext_swap(arg.prev_context, NULL);
-
-  ts2[id] = sampleCoderdtsc();
-
-  LOG_PRINT(LOG_DEBUG, "%d HostBytesAccesses\n" , host_bytes_accessed);
-  for(int i=0; i < host_bytes_accessed; i+=stride){
-    pre_buf[i] = i;
-  }
-  LOG_PRINT(LOG_DEBUG, "%d AXBytesAccesses\n" , ax_bytes_accessed);
-  for(int i=0; i < ax_bytes_accessed; i+=stride){
-    ax_dst_buf[i] = i;
-  }
-
-  ts3[id] = sampleCoderdtsc();
-
-  requests_completed ++;
-  fcontext_swap(arg.prev_context, NULL);
+static inline void decry_buf(void *input, void *output, int size){
 
 }
 
-void blocking_offload_and_linear_access_stamped(fcontext_transfer_t arg){
-  timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
- char *pre_buf = (char *)args->src_payload;
- char *ax_dst_buf = (char *)args->dst_payload;
- int pre_buf_size = input_size ;
- int ax_bytes_accessed = args->dst_size;
- int host_bytes_accessed = args->src_size;
- int stride = args->aux_size;
-
-  int id = args->id;
-  uint64_t *ts0 = args->ts0;
-  uint64_t *ts1 = args->ts1;
-  uint64_t *ts2 = args->ts2;
-  uint64_t *ts3 = args->ts3;
-  ax_comp *comp = args->comp;
-  struct hw_desc *desc = args->desc;
-
-
- /*access the whole host buf to start*/
-  ts0[id] = sampleCoderdtsc();
-
-  for(int i=0; i < pre_buf_size; i+=64){
-    pre_buf[i] = i;
+static inline void post_proc_fn(void *input, void *output, int size){
+  LOG_PRINT(LOG_DEBUG, "PostProc\n");
+  char *in = (char *)input;
+  char *out = (char *)output;
+  for(int i = 0; i < size; i++){
+    out[i] = in[i];
   }
-
-  prepare_dsa_memcpy_desc_with_preallocated_comp(
-    desc, (uint64_t)pre_buf, (uint64_t)ax_dst_buf,
-    (uint64_t)args->comp, (uint64_t)input_size
-  );
-  blocking_dsa_submit(dsa, desc);
-
-  ts1[id] = sampleCoderdtsc();
-
-  spin_on(comp);
-
-  ts2[id] = sampleCoderdtsc();
-
-  LOG_PRINT(LOG_DEBUG, "%d HostBytesAccesses\n" , host_bytes_accessed);
-  for(int i=0; i < host_bytes_accessed; i+=stride){
-    pre_buf[i] = i;
-  }
-  LOG_PRINT(LOG_DEBUG, "%d AXBytesAccesses\n" , ax_bytes_accessed);
-  for(int i=0; i < ax_bytes_accessed; i+=stride){
-    ax_dst_buf[i] = i;
-  }
-
-  ts3[id] = sampleCoderdtsc();
-
-  requests_completed ++;
-  fcontext_swap(arg.prev_context, NULL);
-
 }
 
+template <typename pre_proc_fn, typename prepare_desc_fn, typename submit_fn, typename post_proc_fn>
+static inline void generic_three_phase_timed(
+  pre_proc_fn pre_proc_func,
+  prepare_desc_fn prepare_desc_func,
+  submit_fn submit_offload_func,
+  post_proc_fn post_proc_func,
+  void *pre_proc_input, void *pre_proc_output,
+  int pre_proc_input_size, int max_pre_proc_output_size,
+  void *ax_func_input, void *ax_func_output,
+  int ax_func_input_size, int max_ax_func_output_size,
+  void *post_proc_input, void *post_proc_output,
+  int post_proc_input_size, int max_post_proc_output_size,
+  uint64_t *ts0, uint64_t *ts1, uint64_t *ts2, uint64_t *ts3, int idx
+  )
+{
 
-void yielding_offload_and_serial_access_stamped(fcontext_transfer_t arg){
-  timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
- void **host_pchase_st = (void **)args->src_payload;
- void **memcpy_src = (void **)args->aux_payload;
- void **ax_pchase_st = (void **)args->dst_payload;
- int num_pre_accesses = input_size / sizeof(void *);
- int num_ax_accesses = args->dst_size / sizeof(void *);
- int num_host_accesses = args->src_size / sizeof(void *);
-
-  int id = args->id;
-  uint64_t *ts0 = args->ts0;
-  uint64_t *ts1 = args->ts1;
-  uint64_t *ts2 = args->ts2;
-  uint64_t *ts3 = args->ts3;
-  ax_comp *comp = args->comp;
-  struct hw_desc *desc = args->desc;
-
-
- /*access the whole host buf to start*/
-  ts0[id] = sampleCoderdtsc();
-  chase_pointers(host_pchase_st, num_pre_accesses);
-
-  prepare_dsa_memcpy_desc_with_preallocated_comp(
-    desc, (uint64_t)memcpy_src, (uint64_t)ax_pchase_st,
-    (uint64_t)args->comp, (uint64_t)input_size
-  );
-  blocking_dsa_submit(dsa, desc);
-
-  ts1[id] = sampleCoderdtsc();
-
-  fcontext_swap(arg.prev_context, NULL);
-
-  ts2[id] = sampleCoderdtsc();
-
-  LOG_PRINT(LOG_DEBUG, "%d HostAccesses\n" , num_host_accesses);
-  chase_pointers(host_pchase_st, num_host_accesses);
-  LOG_PRINT(LOG_DEBUG, "%d AXAccesses\n" , num_ax_accesses);
-  chase_pointers(ax_pchase_st, num_ax_accesses);
-
-  ts3[id] = sampleCoderdtsc();
-
-  requests_completed ++;
-  fcontext_swap(arg.prev_context, NULL);
-
+  return;
 }
-
 
 int gLogLevel = LOG_PERF;
 bool gDebugParam = false;
@@ -349,6 +99,8 @@ int main(int argc, char **argv){
   bool run_serialized = false;
   bool run_linear = false;
 
+  ser_buf(1024);
+
 
   while((opt = getopt(argc, argv, "y:s:j:t:i:r:s:q:d:hf")) != -1){
     switch(opt){
@@ -358,35 +110,11 @@ int main(int argc, char **argv){
       case 'i':
         itr = atoi(optarg);
         break;
-      case 'q':
-        input_size = atoi(optarg);
-        break;
-      case 'o':
-        no_latency = true;
-        break;
-      case 'h':
-        no_thrpt = true;
-        break;
       case 'd':
         dev_id = atoi(optarg);
         break;
       case 'f':
         gLogLevel = LOG_DEBUG;
-        break;
-      case 'j':
-        host_buf_bytes_acc = atoi(optarg);
-        break;
-      case 's':
-        ax_buf_bytes_acc = atoi(optarg);
-        break;
-      case 'y':
-        stride = atoi(optarg);
-        break;
-      case 'l':
-        run_linear = true;
-        break;
-      case 'r':
-        run_serialized = true;
         break;
       default:
         break;
@@ -395,67 +123,9 @@ int main(int argc, char **argv){
 
   initialize_dsa_wq(dev_id, wq_id, wq_type);
 
-  LOG_PRINT(LOG_PERF, "Input size: %d\n", input_size);
-  if(!no_latency){
-    if (!run_linear && !run_serialized){
-      run_linear = true;
-      run_serialized = true;
-    }
-    if(run_serialized){
-      run_blocking_offload_request_brkdown(
-        blocking_offload_and_serial_access_stamped,
-        alloc_offload_serialized_access_args,
-        free_offload_serialized_access_args,
-        itr,
-        total_requests
-      );
-      run_yielding_interleaved_request_brkdown(
-        yielding_offload_and_serial_access_stamped,
-        hash_interleaved, /* upper bound on yield perf */
-        alloc_offload_serialized_access_args,
-        free_offload_serialized_access_args,
-        itr,
-        total_requests
-      );
-      run_yielding_interleaved_request_brkdown(
-        yielding_offload_and_serial_access_stamped,
-        antagonist_interleaved,
-        alloc_offload_serialized_access_args,
-        free_offload_serialized_access_args,
-        itr,
-        total_requests
-      );
-    }
 
-    if(run_linear){
-      run_blocking_offload_request_brkdown(
-        blocking_offload_and_linear_access_stamped,
-        alloc_offload_linear_access_args,
-        free_offload_linear_access_args,
-        itr,
-        total_requests
-      );
 
-      run_yielding_interleaved_request_brkdown(
-        yielding_offload_and_linear_access_stamped,
-        hash_interleaved, /* upper bound on yield perf */
-        alloc_offload_linear_access_args,
-        free_offload_linear_access_args,
-        itr,
-        total_requests
-      );
 
-      run_yielding_interleaved_request_brkdown(
-        yielding_offload_and_linear_access_stamped,
-        antagonist_interleaved, /* upper bound on yield perf */
-        alloc_offload_linear_access_args,
-        free_offload_linear_access_args,
-        itr,
-        total_requests
-      );
-    }
-
-  }
 
   free_dsa_wq();
   return 0;

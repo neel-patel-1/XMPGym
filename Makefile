@@ -28,6 +28,7 @@ all: switch_to_fill \
 	memfill_and_gather scan_and_gather \
 	decomp_and_scatter \
 	three_phase \
+	three_phase_composable \
 	traverse \
 	tests
 
@@ -108,11 +109,9 @@ three_phase: $(THREE_PHASE_OBJS) three_phase.o
 three_phase_clean:
 	rm -f three_phase three_phase.o
 
-THREE_PHASE_COMPOSABLE_OBJS = obj/jump_x86_64_sysv_elf_gas.o obj/make_x86_64_sysv_elf_gas.o \
-	obj/ontop_x86_64_sysv_elf_gas.o obj/context_fast.o \
-	obj/emul_ax.o obj/thread_utils.o  obj/offload.o \
-	obj/context_management.o \
-	obj/rps.o obj/dsa_alloc.o obj/stats.o obj/test_harness.o \
+THREE_PHASE_COMPOSABLE_OBJS = $(fcontext_obj) \
+	$(util_obj) \
+	obj/dsa_alloc.o \
 	obj/ch3_hash.o \
 	obj/request_executors.o obj/runners.o obj/iaa_offloads.o \
 	obj/dsa_offloads.o \
@@ -121,8 +120,8 @@ THREE_PHASE_COMPOSABLE_OBJS = obj/jump_x86_64_sysv_elf_gas.o obj/make_x86_64_sys
 	obj/payload_gen.o
 three_phase_composable.o: three_phase_composable.cpp inc/posting_list.h inc/filler_antagonist.h
 	$(CXX) $(CXXFLAGS) -c -o $@ $< $(INCLUDES) -fpermissive
-three_phase_composable: $(THREE_PHASE_COMPOSABLE_OBJS) three_phase_composable.o
-	$(CXX) $(CXXFLAGS) -o $@ $^ -ldml $(LIBS)
+three_phase_composable: $(THREE_PHASE_COMPOSABLE_OBJS) three_phase_composable.o router.pb.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ -ldml $(LIBS) `pkg-config --cflags --libs protobuf`
 three_phase_composable_clean:
 	rm -f three_phase_composable three_phase_composable.o
 
