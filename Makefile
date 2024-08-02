@@ -1,12 +1,15 @@
 
 current_dir = $(shell pwd)
+
 IAA_INCLUDES = -I$(current_dir)/idxd-config/test \
 	-I$(current_dir)/idxd-config/test/algorithms
 IDXD_INCLUDES = -I$(current_dir)/idxd-config
 ACCFG_INCLUDES = -I$(current_dir)/idxd-config/accfg
+PROTO_INCLUDES = -I$(current_dir)/
+INCLUDES = -I./inc $(IAA_INCLUDES) $(ACCFG_INCLUDES) $(IDXD_INCLUDES) $(PROTO_INCLUDES)
+
 IAA_LIBS = -L$(current_dir)/idxd-config/test -liaa -lz -lcrypto
 ACCFG_LIBS = -L$(current_dir)/idxd-config/accfg/lib -laccel-config
-INCLUDES = -I./inc $(IAA_INCLUDES) $(ACCFG_INCLUDES) $(IDXD_INCLUDES)
 LIBS = -ldml $(IAA_LIBS) $(ACCFG_LIBS)
 
 CXXFLAGS = -O2
@@ -44,8 +47,14 @@ obj/ontop_x86_64_sysv_elf_gas.o: src/ontop_x86_64_sysv_elf_gas.S
 obj/context_fast.o: src/context_fast.S
 	$(CXX) $(CXXFLAGS) -c -o $@ $^  -I./inc
 
-router.pb.o: src/router.pb.cc
-	$(CXX) $(CXXFLAGS) -c -o $@ $^  -I./inc `pkg-config --cflags --libs protobuf`
+proto_files/router.pb.h: proto_files/router.proto
+	protoc --cpp_out=. $<
+
+proto_files/router.pb.cc: proto_files/router.proto
+	protoc --cpp_out=. $<
+
+router.pb.o: proto_files/router.pb.cc
+	$(CXX) $(CXXFLAGS) -c -o $@ $^  $(INCLUDES) `pkg-config --cflags --libs protobuf`
 
 obj/%.o: src/%.cpp
 	$(CXX) $(CXXFLAGS) -MMD -c -o $@ $^  $(INCLUDES) `pkg-config --cflags --libs protobuf` -fpermissive

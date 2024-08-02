@@ -3,7 +3,7 @@
 #include "print_utils.h"
 #include "ch3_hash.h"
 #include "status.h"
-#include "router.pb.h"
+#include "proto_files/router.pb.h"
 #include "emul_ax.h"
 #include "thread_utils.h"
 #include "offload.h"

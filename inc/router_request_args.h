@@ -1,6 +1,6 @@
 #ifndef ROUTER_REQUEST_ARGS_H
 #define ROUTER_REQUEST_ARGS_H
-#include "router.pb.h"
+#include "proto_files/router.pb.h"
 #include <string>
 #include "emul_ax.h"
 

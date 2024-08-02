@@ -1,6 +1,6 @@
 #ifndef ROUTER_REQUESTS_H
 #define ROUTER_REQUESTS_H
-#include "router.pb.h"
+#include "proto_files/router.pb.h"
 #include "emul_ax.h"
 #include "ch3_hash.h"
 #include "dsa_alloc.h"
