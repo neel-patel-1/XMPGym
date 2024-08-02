@@ -376,7 +376,7 @@ void blocking_offload_three_phase_stamped(fcontext_transfer_t arg){
   complete_request_and_switch_to_scheduler(arg);
 }
 
-int gLogLevel = LOG_PERF;
+int gLogLevel = LOG_VERBOSE;
 bool gDebugParam = false;
 int main(int argc, char **argv){
 
@@ -404,6 +404,9 @@ int main(int argc, char **argv){
         break;
       case 'i':
         itr = atoi(optarg);
+        break;
+      case 's':
+        payload_size = atoi(optarg);
         break;
       default:
         break;

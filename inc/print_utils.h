@@ -18,6 +18,12 @@ extern int gLogLevel;
  * CPA_TRUE.
  */
 
+#ifdef PERF
+#define PRINT_DBG
+#define PRINT_ERR
+#define LOG_PRINT
+#endif
+
 #ifndef LOG_PRINT
 #define LOG_PRINT(log_level, args...)                                         \
     do                                                                         \
