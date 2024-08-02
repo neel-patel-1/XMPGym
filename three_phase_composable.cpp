@@ -27,16 +27,16 @@ static inline void pre_proc_fn(void *input, void *output, int size){
   }
 }
 
-void ser_buf(int bufsize){
+void ser_buf(int payload_size, void **p_msgbuf, uint64_t *outsize){
   router::RouterRequest req;
   const char * pattern = "01234567";
   std::string pattern_str((char *)&pattern, sizeof(pattern));
   std::string val_string(pattern);
-  int msgsize = bufsize*2;
-  uint8_t *msgbuf = (uint8_t *)malloc(msgsize);
+  uint8_t *msgbuf;
+  uint64_t msgsize;
   bool rc = false;
 
-  while(val_string.size() < bufsize){
+  while(val_string.size() < payload_size){
     val_string.append(pattern);
   }
 
@@ -47,18 +47,27 @@ void ser_buf(int bufsize){
   req.set_value(val_string);
 
   req.set_operation(0);
+  msgsize = req.ByteSizeLong();
+  msgbuf = (uint8_t *)malloc(msgsize);
 
   rc = req.SerializeToArray((void *)msgbuf, msgsize);
   if(rc == false){
     LOG_PRINT(LOG_DEBUG, "Failed to serialize\n");
   }
 
-
+  *p_msgbuf = (void *)msgbuf;
+  *outsize = msgsize;
 }
 
-static inline void decry_buf(void *input, void *output, int size){
+void deser_from_buf(void *ser_inp, void *output, int input_size, int *output_size){
+  router::RouterRequest req;
+  req.ParseFromArray(ser_inp, input_size);
+  LOG_PRINT(LOG_DEBUG, "Deserialized Payload Size: %ld\n", req.value().size());
 
+  memcpy(output, req.value().c_str(), req.value().size());
+  *output_size = req.value().size();
 }
+
 
 static inline void post_proc_fn(void *input, void *output, int size){
   LOG_PRINT(LOG_DEBUG, "PostProc\n");
@@ -105,7 +114,13 @@ int main(int argc, char **argv){
   bool run_serialized = false;
   bool run_linear = false;
 
-  ser_buf(1024);
+  int payload_size = 1024, deserd_size;
+  void *serd_buf, *deserd_buf;
+  uint64_t ser_size;
+  deserd_buf = malloc(payload_size);
+  ser_buf(payload_size, &serd_buf, &ser_size);
+  deser_from_buf(serd_buf, deserd_buf, (int)ser_size, &deserd_size);
+
 
 
   while((opt = getopt(argc, argv, "y:s:j:t:i:r:s:q:d:hf")) != -1){
