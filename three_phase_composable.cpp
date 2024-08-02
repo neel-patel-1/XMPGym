@@ -20,12 +20,47 @@ extern "C" {
 #include "proto_files/router.pb.h"
 #include "ch3_hash.h"
 
+typedef void (*offload_args_allocator_fn_t)(
+  int total_requests,
+  int initial_payload_size,
+  int max_axfunc_output_size,
+  int max_post_proc_output_size,
+  void input_generator(int, void **, int *),
+  timed_offload_request_args ***offload_args,
+  ax_comp *comps, uint64_t *ts0,
+  uint64_t *ts1, uint64_t *ts2,
+  uint64_t *ts3, uint64_t *ts4
+);
+
+typedef void (*offload_args_free_fn_t)(int, timed_offload_request_args***);
+
+typedef void (*input_generator_fn_t)(int, void **, int *);
+
+typedef void (*three_phase_executor_fn_t)(
+  int total_requests,
+  timed_offload_request_args **off_args,
+  fcontext_state_t **off_req_state,
+  fcontext_transfer_t *offload_req_xfer,
+  ax_comp *comps,
+  uint64_t *pre_proc_times,
+  uint64_t *offload_tax_times,
+  uint64_t *ax_func_times,
+  uint64_t *post_proc_times,
+  int idx
+);
+
 void execute_three_phase_blocking_requests_closed_system_request_breakdown(
   int total_requests,
   timed_offload_request_args **off_args,
   fcontext_state_t **off_req_state,
-  uint64_t *pre_proc_times, uint64_t *offload_tax_times,
-  uint64_t *ax_func_times, uint64_t *post_proc_times, int idx)
+  fcontext_transfer_t *offload_req_xfer,
+  ax_comp *comps,
+  uint64_t *pre_proc_times,
+  uint64_t *offload_tax_times,
+  uint64_t *ax_func_times,
+  uint64_t *post_proc_times,
+  int idx
+)
     /* pass in the times we measure and idx to populate */
 {
   int next_unstarted_req_idx = 0;
@@ -55,19 +90,63 @@ void execute_three_phase_blocking_requests_closed_system_request_breakdown(
   LOG_PRINT( LOG_DEBUG, "PostProcTime: %lu\n", post_proc_times[idx]);
 }
 
-void blocking_three_phase_breakdown(
+void execute_three_phase_yielding_requests_closed_system_request_breakdown(
+  int total_requests,
+  timed_offload_request_args **off_args,
+  fcontext_state_t **off_req_state,
+  fcontext_transfer_t *offload_req_xfer,
+  ax_comp *comps,
+  uint64_t *pre_proc_times,
+  uint64_t *offload_tax_times,
+  uint64_t *ax_func_times,
+  uint64_t *post_proc_times,
+  int idx
+)
+{
+  int next_unstarted_req_idx = 0;
+  int next_request_offload_to_complete_idx = 0;
+
+  while(requests_completed < total_requests){
+    if(comps[next_request_offload_to_complete_idx].status == COMP_STATUS_COMPLETED){
+      fcontext_swap(offload_req_xfer[next_request_offload_to_complete_idx].prev_context, NULL);
+      next_request_offload_to_complete_idx++;
+    } else if(next_unstarted_req_idx < total_requests){
+      offload_req_xfer[next_unstarted_req_idx] =
+        fcontext_swap(off_req_state[next_unstarted_req_idx]->context, off_args[next_unstarted_req_idx]);
+      next_unstarted_req_idx++;
+    }
+  }
+
+  uint64_t *ts0 = off_args[0]->ts0;
+  uint64_t *ts1 = off_args[0]->ts1;
+  uint64_t *ts2 = off_args[0]->ts2;
+  uint64_t *ts3 = off_args[0]->ts3;
+  uint64_t *ts4 = off_args[0]->ts4;
+  uint64_t avg, diff[total_requests];
+
+  avg_samples_from_arrays(diff, pre_proc_times[idx], ts1, ts0, requests_completed);
+  LOG_PRINT( LOG_DEBUG, "PreProcTime: %lu\n", pre_proc_times[idx]);
+
+  avg_samples_from_arrays(diff, offload_tax_times[idx], ts2, ts1, requests_completed);
+  LOG_PRINT( LOG_DEBUG, "OffloadTaxTime: %lu\n", offload_tax_times[idx]);
+
+  avg_samples_from_arrays(diff, ax_func_times[idx], ts3, ts2, requests_completed);
+  LOG_PRINT( LOG_DEBUG, "AxFuncTime: %lu\n", ax_func_times[idx]);
+
+  avg_samples_from_arrays(diff, post_proc_times[idx], ts4, ts3, requests_completed);
+  LOG_PRINT( LOG_DEBUG, "PostProcTime: %lu\n", post_proc_times[idx]);
+
+}
+
+
+void three_phase_offload_timed_breakdown(
   fcontext_fn_t request_fn,
-  void (* offload_args_allocator)
-    (int, int, int, int,
-      void (*)(int, void **, int *),
-      timed_offload_request_args***,
-      ax_comp *comps, uint64_t *ts0,
-      uint64_t *ts1, uint64_t *ts2,
-      uint64_t *ts3, uint64_t *ts4),
-  void (* offload_args_free)(int, timed_offload_request_args***),
+  offload_args_allocator_fn_t offload_args_allocator,
+  offload_args_free_fn_t offload_args_free,
+  input_generator_fn_t input_generator,
+  three_phase_executor_fn_t three_phase_executor,
   int total_requests, int initial_payload_size, int max_axfunc_output_size,
   int max_post_proc_output_size,
-  void input_generator(int, void **, int *),
   uint64_t *pre_proc_time, uint64_t *offload_tax_time,
   uint64_t *ax_func_time, uint64_t *post_proc_time, int idx
 ){
@@ -101,12 +180,14 @@ void blocking_three_phase_breakdown(
 
   /* Pre-create the contexts */
   off_req_state = (fcontext_state_t **)malloc(sizeof(fcontext_state_t *) * total_requests);
+  offload_req_xfer = (fcontext_transfer_t *)malloc(sizeof(fcontext_transfer_t) * total_requests);
+
 
   create_contexts(off_req_state, total_requests, request_fn);
 
-  execute_three_phase_blocking_requests_closed_system_request_breakdown(
+  three_phase_executor(
     total_requests, off_args,
-    off_req_state, pre_proc_time,
+    off_req_state, offload_req_xfer, comps, pre_proc_time,
     offload_tax_time, ax_func_time,
     post_proc_time, idx);
 
@@ -123,18 +204,14 @@ void blocking_three_phase_breakdown(
   fcontext_destroy(self);
 }
 
-void run_blocking_offload_request_brkdown_three_phase(
-  fcontext_fn_t req_fn,
-  void (* offload_args_allocator)
-    (int, int, int, int,
-      void (*)(int, void **, int *),
-      timed_offload_request_args***,
-      ax_comp *comps, uint64_t *ts0,
-      uint64_t *ts1, uint64_t *ts2,
-      uint64_t *ts3, uint64_t *ts4),
-  void (* offload_args_free)(int, timed_offload_request_args***),
+void run_three_phase_offload_timed(
+  fcontext_fn_t request_fn,
+  offload_args_allocator_fn_t offload_args_allocator,
+  offload_args_free_fn_t offload_args_free,
+  input_generator_fn_t input_generator,
+  three_phase_executor_fn_t three_phase_executor,
   int iter, int total_requests, int initial_payload_size, int max_axfunc_output_size,
-  int max_post_proc_output_size, void input_generator(int, void **, int *)
+  int max_post_proc_output_size
 ){
   uint64_t *pre_proc_time, *offload_tax_time, *ax_func_time, *post_proc_time;
   pre_proc_time = (uint64_t *)malloc(sizeof(uint64_t) * iter);
@@ -143,12 +220,15 @@ void run_blocking_offload_request_brkdown_three_phase(
   post_proc_time = (uint64_t *)malloc(sizeof(uint64_t) * iter);
 
   for(int i=0; i<iter; i++){
-    blocking_three_phase_breakdown(
-      req_fn,
+    three_phase_offload_timed_breakdown(
+      request_fn,
       offload_args_allocator,
       offload_args_free,
+      input_generator,
+      three_phase_executor,
       total_requests, initial_payload_size, max_axfunc_output_size,
-      max_post_proc_output_size, input_generator, pre_proc_time, offload_tax_time, ax_func_time, post_proc_time, i
+      max_post_proc_output_size,
+      pre_proc_time, offload_tax_time, ax_func_time, post_proc_time, i
     );
   }
   print_mean_median_stdev(pre_proc_time, iter, "PreProcFunc");
@@ -487,6 +567,7 @@ int main(int argc, char **argv){
   int itr = 100;
   int total_requests = 1000;
   int payload_size = 1024;
+  int final_output_size = sizeof(uint32_t);
   bool do_block = false;
   bool do_gpcore = false;
   bool do_yield = false;
@@ -509,13 +590,33 @@ int main(int argc, char **argv){
 
   initialize_iaa_wq(dev_id, wq_id, wq_type);
 
-  run_blocking_offload_request_brkdown_three_phase(
-    deser_decomp_hash_blocking_stamped,
-    three_func_allocator,
-    free_three_phase_stamped_args,
-    itr, total_requests, payload_size, payload_size, 4,
-    gen_compressed_serialized_put_request
-  );
+  if( ! do_gpcore && ! do_block && ! do_yield){
+    do_gpcore = true;
+    do_block = true;
+    do_yield = true;
+  }
+
+  if(do_block){
+    run_three_phase_offload_timed(
+      deser_decomp_hash_blocking_stamped,
+      three_func_allocator,
+      free_three_phase_stamped_args,
+      gen_compressed_serialized_put_request,
+      execute_three_phase_blocking_requests_closed_system_request_breakdown,
+      itr, total_requests, payload_size, payload_size, final_output_size
+    );
+  }
+
+  if(do_yield){
+    run_three_phase_offload_timed(
+      deser_decomp_hash_yielding_stamped,
+      three_func_allocator,
+      free_three_phase_stamped_args,
+      gen_compressed_serialized_put_request,
+      execute_three_phase_yielding_requests_closed_system_request_breakdown,
+      itr, total_requests, payload_size, payload_size, final_output_size
+    );
+  }
 
 
 
