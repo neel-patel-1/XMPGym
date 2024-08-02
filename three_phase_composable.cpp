@@ -90,54 +90,6 @@ void execute_three_phase_blocking_requests_closed_system_request_breakdown(
   LOG_PRINT( LOG_DEBUG, "PostProcTime: %lu\n", post_proc_times[idx]);
 }
 
-void execute_three_phase_yielding_requests_closed_system_request_breakdown(
-  int total_requests,
-  timed_offload_request_args **off_args,
-  fcontext_state_t **off_req_state,
-  fcontext_transfer_t *offload_req_xfer,
-  ax_comp *comps,
-  uint64_t *pre_proc_times,
-  uint64_t *offload_tax_times,
-  uint64_t *ax_func_times,
-  uint64_t *post_proc_times,
-  int idx
-)
-{
-  int next_unstarted_req_idx = 0;
-  int next_request_offload_to_complete_idx = 0;
-
-  while(requests_completed < total_requests){
-    if(comps[next_request_offload_to_complete_idx].status == COMP_STATUS_COMPLETED){
-      fcontext_swap(offload_req_xfer[next_request_offload_to_complete_idx].prev_context, NULL);
-      next_request_offload_to_complete_idx++;
-    } else if(next_unstarted_req_idx < total_requests){
-      offload_req_xfer[next_unstarted_req_idx] =
-        fcontext_swap(off_req_state[next_unstarted_req_idx]->context, off_args[next_unstarted_req_idx]);
-      next_unstarted_req_idx++;
-    }
-  }
-
-  uint64_t *ts0 = off_args[0]->ts0;
-  uint64_t *ts1 = off_args[0]->ts1;
-  uint64_t *ts2 = off_args[0]->ts2;
-  uint64_t *ts3 = off_args[0]->ts3;
-  uint64_t *ts4 = off_args[0]->ts4;
-  uint64_t avg, diff[total_requests];
-
-  avg_samples_from_arrays(diff, pre_proc_times[idx], ts1, ts0, requests_completed);
-  LOG_PRINT( LOG_DEBUG, "PreProcTime: %lu\n", pre_proc_times[idx]);
-
-  avg_samples_from_arrays(diff, offload_tax_times[idx], ts2, ts1, requests_completed);
-  LOG_PRINT( LOG_DEBUG, "OffloadTaxTime: %lu\n", offload_tax_times[idx]);
-
-  avg_samples_from_arrays(diff, ax_func_times[idx], ts3, ts2, requests_completed);
-  LOG_PRINT( LOG_DEBUG, "AxFuncTime: %lu\n", ax_func_times[idx]);
-
-  avg_samples_from_arrays(diff, post_proc_times[idx], ts4, ts3, requests_completed);
-  LOG_PRINT( LOG_DEBUG, "PostProcTime: %lu\n", post_proc_times[idx]);
-
-}
-
 
 void three_phase_offload_timed_breakdown(
   fcontext_fn_t request_fn,
@@ -406,56 +358,6 @@ void three_func_allocator(
   *offload_args = off_args;
 }
 
-/*
-  no pre_proc_funcs expand payload, for now pre_proc_output_size <= pre_proc_input_size
-  - compression upper bound is initial_payload_size
-
-*/
-void deser_decomp_hash_allocator(
-  int total_requests,
-  int initial_payload_size,
-  int max_axfunc_output_size,
-  int max_post_proc_output_size,
-  timed_offload_request_args ***offload_args,
-  ax_comp *comps, uint64_t *ts0,
-  uint64_t *ts1, uint64_t *ts2,
-  uint64_t *ts3, uint64_t *ts4
-)
-{
-  timed_offload_request_args **off_args =
-    (timed_offload_request_args **)malloc(total_requests * sizeof(timed_offload_request_args *));
-
-  int max_pre_proc_output_size;
-  int expected_ax_output_size = initial_payload_size;
-
-  for(int i = 0; i < total_requests; i++){
-    off_args[i] = (timed_offload_request_args *)malloc(sizeof(timed_offload_request_args));
-
-    gen_compressed_serialized_put_request(initial_payload_size,
-      &off_args[i]->pre_proc_input, &off_args[i]->pre_proc_input_size);
-    max_pre_proc_output_size = get_compress_bound(initial_payload_size);
-    off_args[i]->pre_proc_output = (void *)malloc(max_pre_proc_output_size);
-
-    off_args[i]->ax_func_output = (void *)malloc(max_axfunc_output_size);
-    off_args[i]->max_axfunc_output_size = max_axfunc_output_size;
-
-    off_args[i]->post_proc_output = (void *)malloc(max_post_proc_output_size);
-    off_args[i]->max_post_proc_output_size = max_post_proc_output_size;
-    off_args[i]->post_proc_input_size = expected_ax_output_size;
-
-    off_args[i]->comp = &comps[i];
-
-    off_args[i]->ts0 = ts0;
-    off_args[i]->ts1 = ts1;
-    off_args[i]->ts2 = ts2;
-    off_args[i]->ts3 = ts3;
-    off_args[i]->ts4 = ts4;
-    off_args[i]->id = i;
-    off_args[i]->desc = (struct hw_desc *)malloc(sizeof(struct hw_desc));
-
-  }
-  *offload_args = off_args;
-}
 
 void free_three_phase_stamped_args(
   int total_requests,
@@ -541,7 +443,7 @@ void deser_decomp_hash_yielding_stamped(fcontext_transfer_t arg){
   generic_three_phase_timed(
     NULL, arg,
     deser_from_buf, pre_proc_input, pre_proc_output, pre_proc_input_size,
-    prepare_iaa_decompress_desc_with_preallocated_comp, iaa_submit, yield_to_scheduler,
+    prepare_iaa_decompress_desc_with_preallocated_comp, blocking_iaa_submit, yield_to_scheduler,
     comp, desc, iaa,
     ax_func_output, max_axfunc_output_size,
     hash_buf, post_proc_output, post_proc_input_size, max_post_proc_output_size,
@@ -603,17 +505,6 @@ int main(int argc, char **argv){
       free_three_phase_stamped_args,
       gen_compressed_serialized_put_request,
       execute_three_phase_blocking_requests_closed_system_request_breakdown,
-      itr, total_requests, payload_size, payload_size, final_output_size
-    );
-  }
-
-  if(do_yield){
-    run_three_phase_offload_timed(
-      deser_decomp_hash_yielding_stamped,
-      three_func_allocator,
-      free_three_phase_stamped_args,
-      gen_compressed_serialized_put_request,
-      execute_three_phase_yielding_requests_closed_system_request_breakdown,
       itr, total_requests, payload_size, payload_size, final_output_size
     );
   }
