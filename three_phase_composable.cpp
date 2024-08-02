@@ -32,7 +32,7 @@ void ser_buf(int bufsize){
   const char * pattern = "01234567";
   std::string pattern_str((char *)&pattern, sizeof(pattern));
   std::string val_string(pattern);
-  int msgsize = bufsize;
+  int msgsize = bufsize*2;
   uint8_t *msgbuf = (uint8_t *)malloc(msgsize);
   bool rc = false;
 
@@ -48,7 +48,7 @@ void ser_buf(int bufsize){
 
   req.set_operation(0);
 
-  rc = req.SerializeToArray((void *)msgbuf, bufsize);
+  rc = req.SerializeToArray((void *)msgbuf, msgsize);
   if(rc == false){
     LOG_PRINT(LOG_DEBUG, "Failed to serialize\n");
   }
