@@ -59,13 +59,16 @@ void execute_three_phase_blocking_requests_closed_system_request_breakdown(
 void blocking_three_phase_breakdown(
   fcontext_fn_t request_fn,
   void (* offload_args_allocator)
-    (int, int, int, int, timed_offload_request_args***,
+    (int, int, int, int,
+      void (*)(int, void **, int *),
+      timed_offload_request_args***,
       ax_comp *comps, uint64_t *ts0,
       uint64_t *ts1, uint64_t *ts2,
       uint64_t *ts3, uint64_t *ts4),
   void (* offload_args_free)(int, timed_offload_request_args***),
   int total_requests, int initial_payload_size, int max_axfunc_output_size,
   int max_post_proc_output_size,
+  void input_generator(int, void **, int *),
   uint64_t *pre_proc_time, uint64_t *offload_tax_time,
   uint64_t *ax_func_time, uint64_t *post_proc_time, int idx
 ){
@@ -94,7 +97,7 @@ void blocking_three_phase_breakdown(
   allocate_crs(total_requests, &comps);
 
   offload_args_allocator(total_requests, initial_payload_size,
-    max_axfunc_output_size, max_post_proc_output_size, &off_args, comps,
+    max_axfunc_output_size, max_post_proc_output_size, input_generator, &off_args, comps,
     ts0, ts1, ts2, ts3, ts4);
 
   /* Pre-create the contexts */
@@ -124,13 +127,15 @@ void blocking_three_phase_breakdown(
 void run_blocking_offload_request_brkdown_three_phase(
   fcontext_fn_t req_fn,
   void (* offload_args_allocator)
-    (int, int, int, int, timed_offload_request_args***,
+    (int, int, int, int,
+      void (*)(int, void **, int *),
+      timed_offload_request_args***,
       ax_comp *comps, uint64_t *ts0,
       uint64_t *ts1, uint64_t *ts2,
       uint64_t *ts3, uint64_t *ts4),
   void (* offload_args_free)(int, timed_offload_request_args***),
   int iter, int total_requests, int initial_payload_size, int max_axfunc_output_size,
-  int max_post_proc_output_size
+  int max_post_proc_output_size, void input_generator(int, void **, int *)
 ){
   uint64_t *pre_proc_time, *offload_tax_time, *ax_func_time, *post_proc_time;
   pre_proc_time = (uint64_t *)malloc(sizeof(uint64_t) * iter);
@@ -144,7 +149,7 @@ void run_blocking_offload_request_brkdown_three_phase(
       offload_args_allocator,
       offload_args_free,
       total_requests, initial_payload_size, max_axfunc_output_size,
-      max_post_proc_output_size, pre_proc_time, offload_tax_time, ax_func_time, post_proc_time, i
+      max_post_proc_output_size, input_generator, pre_proc_time, offload_tax_time, ax_func_time, post_proc_time, i
     );
   }
   print_mean_median_stdev(pre_proc_time, iter, "PreProcFunc");
@@ -267,12 +272,59 @@ static inline void generic_three_phase_timed(
   return;
 }
 
+void three_func_allocator(
+  int total_requests,
+  int initial_payload_size,
+  int max_axfunc_output_size,
+  int max_post_proc_output_size,
+  void input_generator(int payload_size, void **p_msgbuf, int *outsize),
+  timed_offload_request_args ***offload_args,
+  ax_comp *comps, uint64_t *ts0,
+  uint64_t *ts1, uint64_t *ts2,
+  uint64_t *ts3, uint64_t *ts4
+)
+{
+  timed_offload_request_args **off_args =
+    (timed_offload_request_args **)malloc(total_requests * sizeof(timed_offload_request_args *));
+
+  int max_pre_proc_output_size;
+  int expected_ax_output_size = initial_payload_size;
+
+  for(int i = 0; i < total_requests; i++){
+    off_args[i] = (timed_offload_request_args *)malloc(sizeof(timed_offload_request_args));
+
+    input_generator(initial_payload_size,
+      &off_args[i]->pre_proc_input, &off_args[i]->pre_proc_input_size);
+    max_pre_proc_output_size = get_compress_bound(initial_payload_size);
+    off_args[i]->pre_proc_output = (void *)malloc(max_pre_proc_output_size);
+
+    off_args[i]->ax_func_output = (void *)malloc(max_axfunc_output_size);
+    off_args[i]->max_axfunc_output_size = max_axfunc_output_size;
+
+    off_args[i]->post_proc_output = (void *)malloc(max_post_proc_output_size);
+    off_args[i]->max_post_proc_output_size = max_post_proc_output_size;
+    off_args[i]->post_proc_input_size = expected_ax_output_size;
+
+    off_args[i]->comp = &comps[i];
+
+    off_args[i]->ts0 = ts0;
+    off_args[i]->ts1 = ts1;
+    off_args[i]->ts2 = ts2;
+    off_args[i]->ts3 = ts3;
+    off_args[i]->ts4 = ts4;
+    off_args[i]->id = i;
+    off_args[i]->desc = (struct hw_desc *)malloc(sizeof(struct hw_desc));
+
+  }
+  *offload_args = off_args;
+}
+
 /*
   no pre_proc_funcs expand payload, for now pre_proc_output_size <= pre_proc_input_size
   - compression upper bound is initial_payload_size
 
 */
-void three_phase_stamped_allocator(
+void deser_decomp_hash_allocator(
   int total_requests,
   int initial_payload_size,
   int max_axfunc_output_size,
@@ -338,8 +390,7 @@ static inline void complete_request_and_switch_to_scheduler(fcontext_transfer_t 
   fcontext_swap(arg.prev_context, NULL);
 }
 
-// we have the option to use either func pointers in the args or inline by
-void blocking_offload_three_phase_stamped(fcontext_transfer_t arg){
+void deser_decomp_hash_blocking_stamped(fcontext_transfer_t arg){
   timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
 
   void *pre_proc_input = args->pre_proc_input;
@@ -387,17 +438,16 @@ int main(int argc, char **argv){
 
 
 
-  int payload_size = 1024, deserd_size;
-  void *serd_buf, *deserd_buf, *decompbuf, *hashbuf;
-  int ser_size;
-
-  initialize_iaa_wq(dev_id, wq_id, wq_type);
 
   int opt;
   int itr = 100;
   int total_requests = 1000;
+  int payload_size = 1024;
+  bool do_block = false;
+  bool do_gpcore = false;
+  bool do_yield = false;
 
-  while((opt = getopt(argc, argv, "y:s:j:t:i:r:s:q:d:hf")) != -1){
+  while((opt = getopt(argc, argv, "t:i:s:bgy")) != -1){
     switch(opt){
       case 't':
         total_requests = atoi(optarg);
@@ -413,12 +463,14 @@ int main(int argc, char **argv){
     }
   }
 
+  initialize_iaa_wq(dev_id, wq_id, wq_type);
 
   run_blocking_offload_request_brkdown_three_phase(
-    blocking_offload_three_phase_stamped,
-    three_phase_stamped_allocator,
+    deser_decomp_hash_blocking_stamped,
+    three_func_allocator,
     free_three_phase_stamped_args,
-    itr, total_requests, payload_size, payload_size, 4
+    itr, total_requests, payload_size, payload_size, 4,
+    gen_compressed_serialized_put_request
   );
 
   free_iaa_wq();
