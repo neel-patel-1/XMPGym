@@ -31,11 +31,13 @@ void ser_buf(int bufsize){
   router::RouterRequest req;
   const char * pattern = "01234567";
   std::string pattern_str((char *)&pattern, sizeof(pattern));
-  // generate a value buffer of bufsize
-  std::string val_string(pattern, pattern_str.size());
+  std::string val_string(pattern);
+  int msgsize = bufsize;
+  uint8_t *msgbuf = (uint8_t *)malloc(msgsize);
+  bool rc = false;
 
   while(val_string.size() < bufsize){
-    val_string += pattern_str;
+    val_string.append(pattern);
   }
 
   LOG_PRINT(LOG_DEBUG, "ValString: %s Size: %ld\n", val_string.c_str(), val_string.size());
@@ -46,7 +48,11 @@ void ser_buf(int bufsize){
 
   req.set_operation(0);
 
-  // copy wire formatted ser'd buf to the output
+  rc = req.SerializeToArray((void *)msgbuf, bufsize);
+  if(rc == false){
+    LOG_PRINT(LOG_DEBUG, "Failed to serialize\n");
+  }
+
 
 }
 
@@ -82,7 +88,7 @@ static inline void generic_three_phase_timed(
   return;
 }
 
-int gLogLevel = LOG_PERF;
+int gLogLevel = LOG_DEBUG;
 bool gDebugParam = false;
 int main(int argc, char **argv){
 
