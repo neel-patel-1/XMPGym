@@ -376,7 +376,7 @@ void blocking_offload_three_phase_stamped(fcontext_transfer_t arg){
   complete_request_and_switch_to_scheduler(arg);
 }
 
-int gLogLevel = LOG_VERBOSE;
+int gLogLevel = LOG_PERF;
 bool gDebugParam = false;
 int main(int argc, char **argv){
 
@@ -392,33 +392,30 @@ int main(int argc, char **argv){
   int ser_size;
 
   initialize_iaa_wq(dev_id, wq_id, wq_type);
-  // gen_compressed_serialized_put_request(payload_size, &serd_buf, &ser_size);
 
-  // deserd_buf = malloc(payload_size); // oversized, only needs to be sized for compressed payload, byt presumably could be undersized for uncompressible data
-  // decompbuf = malloc(payload_size);
-  // hashbuf = malloc(sizeof(uint32_t));
+  int opt;
+  int itr = 100;
+  int total_requests = 1000;
 
-  // uint64_t ts0, ts1, ts2, ts3, ts4;
+  while((opt = getopt(argc, argv, "y:s:j:t:i:r:s:q:d:hf")) != -1){
+    switch(opt){
+      case 't':
+        total_requests = atoi(optarg);
+        break;
+      case 'i':
+        itr = atoi(optarg);
+        break;
+      default:
+        break;
+    }
+  }
 
-  // struct hw_desc desc;
-  // ax_comp *comp, sig;
-  // comp = (ax_comp *)aligned_alloc(iaa->compl_size, sizeof(ax_comp));
-
-  // generic_three_phase_timed(
-  //   sig,
-  //   deser_from_buf, serd_buf, deserd_buf, ser_size,
-  //   prepare_iaa_decompress_desc_with_preallocated_comp, blocking_iaa_submit, spin_on,
-  //   comp, &desc, iaa,
-  //   decompbuf, payload_size,
-  //   hash_buf, hashbuf, payload_size, sizeof(uint32_t),
-  //   &ts0, &ts1, &ts2, &ts3, &ts4, 0
-  // );
 
   run_blocking_offload_request_brkdown_three_phase(
     blocking_offload_three_phase_stamped,
     three_phase_stamped_allocator,
     free_three_phase_stamped_args,
-    1, 1, payload_size, payload_size, 4
+    itr, total_requests, payload_size, payload_size, 4
   );
 
   free_iaa_wq();
