@@ -20,6 +20,8 @@ extern "C" {
 #include "proto_files/router.pb.h"
 #include "ch3_hash.h"
 
+#include "ippcp.h"
+
 typedef void (*offload_args_allocator_fn_t)(
   int total_requests,
   int initial_payload_size,
@@ -204,6 +206,22 @@ uLong get_compress_bound(int payload_size){
   maxcompsize = deflateBound(&stream, payload_size);
   deflateEnd(&stream);
   return maxcompsize;
+}
+
+void gen_encrypted_feature(int payload_size, void **p_msgbuf, int *outsize){
+  int ippAES_GCM_ctx_size;
+  IppStatus status;
+
+  status = ippsAES_GCMGetSize(&ippAES_GCM_ctx_size);
+  if(status != ippStsNoErr){
+    LOG_PRINT(LOG_ERR, "Failed to get AES GCM size\n");
+  }
+
+  IppsAES_GCMState *pAES_GCM_ctx = (IppsAES_GCMState *)malloc(ippAES_GCM_ctx_size);
+
+  Ipp8u *pKey = (Ipp8u *)malloc(16);
+
+  status = ippsAES_GCMInit(pKey, 16, pAES_GCM_ctx, ippAES_GCM_ctx_size);
 }
 
 void gen_compressed_serialized_put_request(int payload_size, void **p_msgbuf, int *outsize){

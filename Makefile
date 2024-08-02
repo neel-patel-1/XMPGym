@@ -5,11 +5,18 @@ IAA_INCLUDES = -I$(current_dir)/idxd-config/test \
 	-I$(current_dir)/idxd-config/test/algorithms
 IDXD_INCLUDES = -I$(current_dir)/idxd-config
 ACCFG_INCLUDES = -I$(current_dir)/idxd-config/accfg
+
 PROTO_INCLUDES = -I$(current_dir)/
+
+IPP_CRYPTO_INCLUDES = -I/opt/intel/oneapi/ippcp/2021.11/include
+
 INCLUDES = -I./inc $(IAA_INCLUDES) $(ACCFG_INCLUDES) $(IDXD_INCLUDES) $(PROTO_INCLUDES)
 
 IAA_LIBS = -L$(current_dir)/idxd-config/test -liaa -lz -lcrypto
 ACCFG_LIBS = -L$(current_dir)/idxd-config/accfg/lib -laccel-config
+
+IPP_CRYPTO_LIB = -L/opt/intel/oneapi/ippcp/2021.11/lib/ -lippcp
+
 LIBS = -ldml $(IAA_LIBS) $(ACCFG_LIBS)
 
 CXXFLAGS = -O2
@@ -128,9 +135,9 @@ THREE_PHASE_COMPOSABLE_OBJS = $(fcontext_obj) \
 	obj/posting_list.o \
 	obj/payload_gen.o
 three_phase_composable.o: three_phase_composable.cpp inc/posting_list.h inc/filler_antagonist.h
-	$(CXX) $(CXXFLAGS) -c -o $@ $< $(INCLUDES) -fpermissive
+	$(CXX) $(CXXFLAGS) -c -o $@ $< $(INCLUDES) $(IPP_CRYPTO_INCLUDES) -fpermissive
 three_phase_composable: $(THREE_PHASE_COMPOSABLE_OBJS) three_phase_composable.o router.pb.o
-	$(CXX) $(CXXFLAGS) -o $@ $^ -ldml $(LIBS) `pkg-config --cflags --libs protobuf`
+	$(CXX) $(CXXFLAGS) -o $@ $^ -ldml $(LIBS) $(IPP_CRYPTO_LIB) `pkg-config --cflags --libs protobuf` -lippcp
 three_phase_composable_clean:
 	rm -f three_phase_composable three_phase_composable.o
 
