@@ -27,29 +27,62 @@ static inline void pre_proc_fn(void *input, void *output, int size){
   }
 }
 
-void ser_buf(int payload_size, void **p_msgbuf, uint64_t *outsize){
+void gen_compressed_serialized_put_request(int payload_size, void **p_msgbuf, uint64_t *outsize){
   router::RouterRequest req;
   const char * pattern = "01234567";
-  std::string pattern_str((char *)&pattern, sizeof(pattern));
-  std::string val_string(pattern);
+  std::string val_string;
   uint8_t *msgbuf;
-  uint64_t msgsize;
+  uint64_t msgsize, compsize, maxcompsize;
   bool rc = false;
 
-  while(val_string.size() < payload_size){
-    val_string.append(pattern);
-  }
+  int ret = 0;
+  z_stream stream;
+  int avail_out;
 
+  val_string = gen_compressible_string(pattern, payload_size);
   LOG_PRINT(LOG_DEBUG, "ValString: %s Size: %ld\n", val_string.c_str(), val_string.size());
 
+  memset(&stream, 0, sizeof(z_stream));
+  ret = deflateInit2(&stream, Z_BEST_COMPRESSION, Z_DEFLATED, -12, 9, Z_DEFAULT_STRATEGY);
+  if (ret != Z_OK) {
+    LOG_PRINT( LOG_ERR, "Error deflateInit2 status %d\n", ret);
+    return;
+  }
+  maxcompsize = deflateBound(&stream, val_string.size());
+  LOG_PRINT(LOG_DEBUG, "MaxCompressedSize: %ld\n", maxcompsize);
+
+  msgbuf = (uint8_t *)malloc(maxcompsize);
+  stream.avail_in = payload_size;
+  stream.next_in = (Bytef *)val_string.c_str();
+  stream.avail_out = avail_out;
+  stream.next_out = (Bytef *)msgbuf;
+  dump_deflate_state(&stream);
+
+  do {
+    ret = deflate(&stream, Z_NO_FLUSH);
+    dump_deflate_state(&stream);
+  }
+  while(stream.avail_in > 0 && ret == Z_OK);
+  if(ret != Z_STREAM_END) { /* we need to flush, out input was small */
+    ret = deflate(&stream, Z_FINISH);
+  }
+  dump_deflate_state(&stream);
+
+  ret = deflateEnd(&stream);
+  if (ret) {
+    LOG_PRINT( LOG_ERR, "Error deflateEnd status %d\n", ret);
+    return;
+  }
+  LOG_PRINT(LOG_DEBUG, "Compressed ValString Size: %ld\n", stream.total_out);
+
+  std::string compstring((char *)msgbuf, compsize);
+
   req.set_key("/region/cluster/foo:key|#|etc"); // key is 32B string, value gets bigger up to 2MB
-
-  req.set_value(val_string);
-
+  req.set_value(compstring);
   req.set_operation(0);
+
   msgsize = req.ByteSizeLong();
   msgbuf = (uint8_t *)malloc(msgsize);
-
   rc = req.SerializeToArray((void *)msgbuf, msgsize);
   if(rc == false){
     LOG_PRINT(LOG_DEBUG, "Failed to serialize\n");
@@ -97,7 +130,7 @@ static inline void generic_three_phase_timed(
   return;
 }
 
-int gLogLevel = LOG_DEBUG;
+int gLogLevel = LOG_VERBOSE;
 bool gDebugParam = false;
 int main(int argc, char **argv){
 
@@ -118,7 +151,7 @@ int main(int argc, char **argv){
   void *serd_buf, *deserd_buf;
   uint64_t ser_size;
   deserd_buf = malloc(payload_size);
-  ser_buf(payload_size, &serd_buf, &ser_size);
+  gen_compressed_serialized_put_request(payload_size, &serd_buf, &ser_size);
   deser_from_buf(serd_buf, deserd_buf, (int)ser_size, &deserd_size);
 
 
