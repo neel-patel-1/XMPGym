@@ -1,9 +1,25 @@
 #include "payload_gen.h"
 #include <random>
+#include <cstring>
 std::string gen_compressible_string(const char *append_string, int input_size){
   std::string payload = "";
   while(payload.size() < input_size){
     payload.append(append_string);
+  }
+  return payload;
+}
+
+char *gen_compressible_buf(const char *append_string, int input_size){
+  uint8_t *payload = (uint8_t *)malloc(input_size);
+  int append_strlen = strlen(append_string);
+  int cpylen = append_strlen;
+  int i=0;
+  while(i < input_size){
+    if(i + append_strlen > input_size){
+      cpylen = input_size - i;
+    }
+    memcpy(&payload[i], append_string, cpylen);
+    i+=cpylen;
   }
   return payload;
 }

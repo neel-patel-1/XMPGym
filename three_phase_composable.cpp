@@ -30,52 +30,32 @@ static inline void pre_proc_fn(void *input, void *output, int size){
 void gen_compressed_serialized_put_request(int payload_size, void **p_msgbuf, uint64_t *outsize){
   router::RouterRequest req;
   const char * pattern = "01234567";
-  std::string val_string;
-  uint8_t *msgbuf;
-  uint64_t msgsize, compsize, maxcompsize;
+  uint8_t *msgbuf, *compbuf;
+  char *valbuf;
+  uint64_t msgsize;
+  int compsize, maxcompsize;
   bool rc = false;
 
   int ret = 0;
   z_stream stream;
   int avail_out;
 
-  val_string = gen_compressible_string(pattern, payload_size);
-  LOG_PRINT(LOG_DEBUG, "ValString: %s Size: %ld\n", val_string.c_str(), val_string.size());
+  valbuf = gen_compressible_buf(pattern, payload_size);
+  LOG_PRINT(LOG_DEBUG, "ValString: %s Size: %d\n", valbuf, payload_size);
 
+  /* get compress bound*/
   memset(&stream, 0, sizeof(z_stream));
   ret = deflateInit2(&stream, Z_BEST_COMPRESSION, Z_DEFLATED, -12, 9, Z_DEFAULT_STRATEGY);
   if (ret != Z_OK) {
     LOG_PRINT( LOG_ERR, "Error deflateInit2 status %d\n", ret);
     return;
   }
-  maxcompsize = deflateBound(&stream, val_string.size());
-  LOG_PRINT(LOG_DEBUG, "MaxCompressedSize: %ld\n", maxcompsize);
 
-  msgbuf = (uint8_t *)malloc(maxcompsize);
-  stream.avail_in = payload_size;
-  stream.next_in = (Bytef *)val_string.c_str();
-  stream.avail_out = avail_out;
-  stream.next_out = (Bytef *)msgbuf;
-  dump_deflate_state(&stream);
+  maxcompsize = deflateBound(&stream, payload_size);
+  compbuf = (uint8_t *)malloc(maxcompsize);
+  gpcore_do_compress(compbuf, (void *)valbuf, payload_size, &maxcompsize);
 
-  do {
-    ret = deflate(&stream, Z_NO_FLUSH);
-    dump_deflate_state(&stream);
-  }
-  while(stream.avail_in > 0 && ret == Z_OK);
-  if(ret != Z_STREAM_END) { /* we need to flush, out input was small */
-    ret = deflate(&stream, Z_FINISH);
-  }
-  dump_deflate_state(&stream);
-
-  ret = deflateEnd(&stream);
-  if (ret) {
-    LOG_PRINT( LOG_ERR, "Error deflateEnd status %d\n", ret);
-    return;
-  }
-  LOG_PRINT(LOG_DEBUG, "Compressed ValString Size: %ld\n", stream.total_out);
-
-  std::string compstring((char *)msgbuf, compsize);
+  std::string compstring((char *)compbuf, maxcompsize);
 
   req.set_key("/region/cluster/foo:key|#|etc"); // key is 32B string, value gets bigger up to 2MB
   req.set_value(compstring);
