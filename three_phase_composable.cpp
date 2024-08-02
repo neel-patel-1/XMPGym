@@ -16,7 +16,6 @@ extern "C" {
 #include "decompress_and_hash_request.hpp"
 #include "iaa_offloads.h"
 #include "submit.hpp"
-#include "wait.h"
 
 #include "proto_files/router.pb.h"
 #include "ch3_hash.h"
@@ -229,13 +228,21 @@ void hash_buf(void *inp, void *output, int input_size, int *output_size){
   *output_size = sizeof(uint32_t);
 }
 
+static inline void yield_to_scheduler(fcontext_transfer_t arg, ax_comp *comp){
+  fcontext_swap(arg.prev_context, NULL);
+}
+
+static inline void spin_on(fcontext_transfer_t arg, ax_comp *comp){
+  while(comp->status == IAX_COMP_NONE){  }
+}
+
 template <typename pre_proc_fn,
   typename prep_desc_fn, typename submit_desc_fn, typename post_offload_fn,
   typename desc_t, typename comp_record_t, typename ax_handle_t,
   typename post_proc_fn,
   typename preempt_signal_t>
 static inline void generic_three_phase_timed(
-  preempt_signal_t sig,
+  preempt_signal_t sig, fcontext_transfer_t arg,
   pre_proc_fn pre_proc_func, void *pre_proc_input, void *pre_proc_output, int pre_proc_input_size,
   prep_desc_fn prep_func, submit_desc_fn submit_func, post_offload_fn post_offload_func,
   comp_record_t *comp, desc_t *desc, ax_handle_t *ax,
@@ -260,7 +267,7 @@ static inline void generic_three_phase_timed(
   submit_func(ax, desc);
 
   ts2[idx] = sampleCoderdtsc();
-  post_offload_func(comp);
+  post_offload_func(arg, comp);
   LOG_PRINT(LOG_DEBUG, "AXFuncOutput: %s \n", (char *)ax_func_output);
 
   ts3[idx] = sampleCoderdtsc();
@@ -415,9 +422,46 @@ void deser_decomp_hash_blocking_stamped(fcontext_transfer_t arg){
   uint64_t *ts4 = args->ts4;
 
   generic_three_phase_timed(
-    NULL,
+    NULL, arg,
     deser_from_buf, pre_proc_input, pre_proc_output, pre_proc_input_size,
     prepare_iaa_decompress_desc_with_preallocated_comp, blocking_iaa_submit, spin_on,
+    comp, desc, iaa,
+    ax_func_output, max_axfunc_output_size,
+    hash_buf, post_proc_output, post_proc_input_size, max_post_proc_output_size,
+    ts0, ts1, ts2, ts3, ts4, id
+  );
+
+  complete_request_and_switch_to_scheduler(arg);
+}
+
+void deser_decomp_hash_yielding_stamped(fcontext_transfer_t arg){
+  timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
+
+  void *pre_proc_input = args->pre_proc_input;
+  void *pre_proc_output = args->pre_proc_output;
+  int pre_proc_input_size = args->pre_proc_input_size;
+
+  void *ax_func_output = args->ax_func_output;
+  int max_axfunc_output_size = args->max_axfunc_output_size;
+
+  void *post_proc_output = args->post_proc_output;
+  int post_proc_input_size = args->post_proc_input_size;
+  int max_post_proc_output_size = args->max_post_proc_output_size;
+
+  ax_comp *comp = args->comp;
+  struct hw_desc *desc = args->desc;
+  int id = args->id;
+
+  uint64_t *ts0 = args->ts0;
+  uint64_t *ts1 = args->ts1;
+  uint64_t *ts2 = args->ts2;
+  uint64_t *ts3 = args->ts3;
+  uint64_t *ts4 = args->ts4;
+
+  generic_three_phase_timed(
+    NULL, arg,
+    deser_from_buf, pre_proc_input, pre_proc_output, pre_proc_input_size,
+    prepare_iaa_decompress_desc_with_preallocated_comp, iaa_submit, yield_to_scheduler,
     comp, desc, iaa,
     ax_func_output, max_axfunc_output_size,
     hash_buf, post_proc_output, post_proc_input_size, max_post_proc_output_size,
@@ -472,6 +516,8 @@ int main(int argc, char **argv){
     itr, total_requests, payload_size, payload_size, 4,
     gen_compressed_serialized_put_request
   );
+
+
 
   free_iaa_wq();
   return 0;
