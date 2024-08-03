@@ -558,7 +558,6 @@ int main(int argc, char **argv){
 
 
     run_three_phase_offload_timed(
-      deser_decomp_hash_blocking_stamped,
       alloc_executor_args,
       free_executor_args,
       alloc_breakdown_stats,

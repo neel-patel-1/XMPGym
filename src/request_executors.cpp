@@ -70,20 +70,22 @@ void execute_three_phase_blocking_requests_closed_system_throughput(
 }
 
 void execute_three_phase_blocking_requests_closed_system_request_breakdown(
-  int total_requests,
-  timed_offload_request_args **off_args,
-  fcontext_state_t **off_req_state,
-  fcontext_transfer_t *offload_req_xfer,
-  ax_comp *comps,
-  uint64_t *pre_proc_times,
-  uint64_t *offload_tax_times,
-  uint64_t *ax_func_times,
-  uint64_t *post_proc_times,
-  int idx
+  executor_args_t *args,
+  executor_stats_t *stats
 )
     /* pass in the times we measure and idx to populate */
 {
   int next_unstarted_req_idx = 0;
+  int total_requests = args->total_requests;
+  timed_offload_request_args **off_args = args->off_args;
+  fcontext_state_t **off_req_state = args->off_req_state;
+  fcontext_transfer_t *offload_req_xfer = args->offload_req_xfer;
+  ax_comp *comps = args->comps;
+  uint64_t *pre_proc_times = stats->pre_proc_times;
+  uint64_t *offload_tax_times = stats->offload_tax_times;
+  uint64_t *ax_func_times = stats->ax_func_times;
+  uint64_t *post_proc_times = stats->post_proc_times;
+  int idx = args->idx;
 
   while(next_unstarted_req_idx < total_requests){
     fcontext_swap(off_req_state[next_unstarted_req_idx]->context, off_args[next_unstarted_req_idx]);

@@ -40,18 +40,16 @@ void three_phase_harness(
 }
 
 void three_phase_offload_timed_breakdown(
-  fcontext_fn_t request_fn,
   executor_args_allocator_fn_t executor_args_allocator,
   executor_args_free_fn_t executor_args_free,
   offload_args_allocator_fn_t offload_args_allocator,
   offload_args_free_fn_t offload_args_free,
   input_generator_fn_t input_generator,
-  three_phase_executor_fn_t three_phase_executor,
+  executor_fn_t three_phase_executor,
   int total_requests, int initial_payload_size, int max_axfunc_output_size,
   int max_post_proc_output_size,
   executor_stats_t *stats, int idx
 ){
-  using namespace std;
   fcontext_state_t *self = fcontext_create_proxy();
   char**dst_bufs;
   ax_comp *comps;
@@ -74,10 +72,7 @@ void three_phase_offload_timed_breakdown(
   args->off_args = off_args;
 
   three_phase_executor(
-    args->total_requests, args->off_args,
-    args->off_req_state, args->offload_req_xfer, args->comps, stats->pre_proc_times,
-    stats->offload_tax_times, stats->ax_func_times,
-    stats->post_proc_times, args->idx);
+    args, stats);
 
   /* teardown */
   offload_args_free(total_requests, &off_args);
