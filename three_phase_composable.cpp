@@ -70,6 +70,8 @@ void alloc_blocking_request_deser_decomp_hash_executor_args(executor_args_t **p_
   *p_args = args;
 }
 
+void deser_decomp_hash_blocking_stamped(fcontext_transfer_t arg);
+
 void alloc_executor_args(executor_args_t **p_args, int idx, int total_requests){
   LOG_PRINT(LOG_DEBUG, "Allocating Executor Args\n");
   executor_args_t *args;
@@ -82,7 +84,9 @@ void alloc_executor_args(executor_args_t **p_args, int idx, int total_requests){
   args->ts3 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
   args->ts4 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
 
-
+  args->off_req_state = (fcontext_state_t **)malloc(sizeof(fcontext_state_t *) * total_requests);
+  args->offload_req_xfer = (fcontext_transfer_t *)malloc(sizeof(fcontext_transfer_t) * total_requests);
+  create_contexts(args->off_req_state, total_requests, deser_decomp_hash_blocking_stamped);
   allocate_crs(total_requests, &(args->comps));
 
   *p_args = args;
@@ -100,6 +104,8 @@ void free_executor_args(executor_args_t *args){
 
   free(args->comps);
   free(args);
+
+  free_contexts(args->off_req_state, args->total_requests);
 }
 
 void free_deser_decomp_hash_executor_args(executor_args_t *args){

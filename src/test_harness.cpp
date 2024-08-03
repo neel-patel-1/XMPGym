@@ -84,20 +84,20 @@ void three_phase_offload_timed_breakdown(
     args->ts0, args->ts1, args->ts2, args->ts3, args->ts4);
 
   /* Pre-create the contexts */
-  off_req_state = (fcontext_state_t **)malloc(sizeof(fcontext_state_t *) * total_requests);
-  offload_req_xfer = (fcontext_transfer_t *)malloc(sizeof(fcontext_transfer_t) * total_requests);
+  // off_req_state = (fcontext_state_t **)malloc(sizeof(fcontext_state_t *) * total_requests);
+  // offload_req_xfer = (fcontext_transfer_t *)malloc(sizeof(fcontext_transfer_t) * total_requests);
 
 
-  create_contexts(off_req_state, total_requests, request_fn);
+  // create_contexts(off_req_state, total_requests, request_fn);
 
   three_phase_executor(
     total_requests, off_args,
-    off_req_state, offload_req_xfer, args->comps, pre_proc_time,
+    args->off_req_state, args->offload_req_xfer, args->comps, pre_proc_time,
     offload_tax_time, ax_func_time,
     post_proc_time, idx);
 
   /* teardown */
-  free_contexts(off_req_state, total_requests);
+  // free_contexts(off_req_state, total_requests);
   // free(comps);
   offload_args_free(total_requests, &off_args);
   // free(ts0);
