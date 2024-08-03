@@ -15,6 +15,7 @@ extern "C" {
 }
 #include "decompress_and_hash_request.hpp"
 #include "iaa_offloads.h"
+#include "dsa_offloads.h"
 #include "submit.hpp"
 
 #include "proto_files/router.pb.h"
@@ -263,7 +264,7 @@ void gen_encrypted_feature(int payload_size, void **p_msgbuf, int *outsize){
 
 }
 
-void decrypt_feature(void *cipher_inp, void *plain_out, int input_size, int *output_size){
+static inline void decrypt_feature(void *cipher_inp, void *plain_out, int input_size, int *output_size){
   Ipp8u *pKey = (Ipp8u *)"0123456789abcdef";
   Ipp8u *pIV = (Ipp8u *)"0123456789ab";
   int keysize = 16;
@@ -287,6 +288,19 @@ void decrypt_feature(void *cipher_inp, void *plain_out, int input_size, int *out
 
   LOG_PRINT(LOG_VERBOSE, "Decrypted: %s\n", (char *)plain_out);
   *(int *)output_size = input_size;
+}
+
+static inline void dot_product(void *feature, void *plain_out, int input_size, int *output_size){
+  float sum = 0;
+  float doc[8] = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8};
+  float *v2 = (float *)feature;
+  int mult_ops = input_size / sizeof(float);
+
+  for(int i=0; i < mult_ops; i++){
+    sum += v2[i] * doc[i % 8];
+  }
+  LOG_PRINT(LOG_DEBUG, "Dot Product: %f\n", sum);
+
 }
 
 void gen_compressed_serialized_put_request(int payload_size, void **p_msgbuf, int *outsize){
@@ -462,6 +476,43 @@ static inline void complete_request_and_switch_to_scheduler(fcontext_transfer_t 
   fcontext_swap(arg.prev_context, NULL);
 }
 
+void decrypt_memcpy_score_blocking_stamped(fcontext_transfer_t arg){
+  timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
+
+  void *pre_proc_input = args->pre_proc_input;
+  void *pre_proc_output = args->pre_proc_output;
+  int pre_proc_input_size = args->pre_proc_input_size;
+
+  void *ax_func_output = args->ax_func_output;
+  int max_axfunc_output_size = args->max_axfunc_output_size;
+
+  void *post_proc_output = args->post_proc_output;
+  int post_proc_input_size = args->post_proc_input_size;
+  int max_post_proc_output_size = args->max_post_proc_output_size;
+
+  ax_comp *comp = args->comp;
+  struct hw_desc *desc = args->desc;
+  int id = args->id;
+
+  uint64_t *ts0 = args->ts0;
+  uint64_t *ts1 = args->ts1;
+  uint64_t *ts2 = args->ts2;
+  uint64_t *ts3 = args->ts3;
+  uint64_t *ts4 = args->ts4;
+
+  generic_three_phase_timed(
+    NULL, arg,
+    decrypt_feature, pre_proc_input, pre_proc_output, pre_proc_input_size,
+    prepare_dsa_memcpy_desc_with_preallocated_comp, blocking_dsa_submit, spin_on,
+    comp, desc, iaa,
+    ax_func_output, max_axfunc_output_size,
+    dot_product, post_proc_output, post_proc_input_size, max_post_proc_output_size,
+    ts0, ts1, ts2, ts3, ts4, id
+  );
+
+  complete_request_and_switch_to_scheduler(arg);
+}
+
 void deser_decomp_hash_blocking_stamped(fcontext_transfer_t arg){
   timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
 
@@ -536,7 +587,7 @@ void deser_decomp_hash_yielding_stamped(fcontext_transfer_t arg){
   complete_request_and_switch_to_scheduler(arg);
 }
 
-int gLogLevel = LOG_VERBOSE;
+int gLogLevel = LOG_PERF;
 bool gDebugParam = false;
 int main(int argc, char **argv){
 
@@ -557,11 +608,6 @@ int main(int argc, char **argv){
   void *p_msgbuf;
   int outsize;
 
-  gen_encrypted_feature(payload_size, &p_msgbuf, &outsize);
-  decrypt_feature(p_msgbuf, p_msgbuf, outsize, &outsize);
-
-
-  return 0;
 
   while((opt = getopt(argc, argv, "t:i:s:bgy")) != -1){
     switch(opt){
@@ -593,6 +639,15 @@ int main(int argc, char **argv){
       three_func_allocator,
       free_three_phase_stamped_args,
       gen_compressed_serialized_put_request,
+      execute_three_phase_blocking_requests_closed_system_request_breakdown,
+      itr, total_requests, payload_size, payload_size, final_output_size
+    );
+
+    run_three_phase_offload_timed(
+      decrypt_memcpy_score_blocking_stamped,
+      three_func_allocator,
+      free_three_phase_stamped_args,
+      gen_encrypted_feature,
       execute_three_phase_blocking_requests_closed_system_request_breakdown,
       itr, total_requests, payload_size, payload_size, final_output_size
     );
