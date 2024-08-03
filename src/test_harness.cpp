@@ -49,8 +49,7 @@ void three_phase_offload_timed_breakdown(
   three_phase_executor_fn_t three_phase_executor,
   int total_requests, int initial_payload_size, int max_axfunc_output_size,
   int max_post_proc_output_size,
-  uint64_t *pre_proc_time, uint64_t *offload_tax_time,
-  uint64_t *ax_func_time, uint64_t *post_proc_time, int idx
+  executor_stats_t *stats, int idx
 ){
   using namespace std;
   fcontext_state_t *self = fcontext_create_proxy();
@@ -63,49 +62,25 @@ void three_phase_offload_timed_breakdown(
   int sampling_intervals = 1;
   int sampling_interval_timestamps = sampling_intervals + 1;
   uint64_t sampling_interval_completion_times[sampling_interval_timestamps];
-  // uint64_t *ts0, *ts1, *ts2, *ts3, *ts4;
-
   executor_args_t *args;
   executor_args_allocator(&args, idx, total_requests);
 
-  // ts0 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  // ts1 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  // ts2 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  // ts3 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  // ts4 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-
   requests_completed = 0;
-
-  /* pre-allocate the payloads */
-  // allocate_crs(total_requests, &comps);
 
   offload_args_allocator(total_requests, initial_payload_size,
     max_axfunc_output_size, max_post_proc_output_size, input_generator, &off_args, args->comps,
     args->ts0, args->ts1, args->ts2, args->ts3, args->ts4);
 
-  /* Pre-create the contexts */
-  // off_req_state = (fcontext_state_t **)malloc(sizeof(fcontext_state_t *) * total_requests);
-  // offload_req_xfer = (fcontext_transfer_t *)malloc(sizeof(fcontext_transfer_t) * total_requests);
-
-
-  // create_contexts(off_req_state, total_requests, request_fn);
+  args->off_args = off_args;
 
   three_phase_executor(
-    total_requests, off_args,
-    args->off_req_state, args->offload_req_xfer, args->comps, pre_proc_time,
-    offload_tax_time, ax_func_time,
-    post_proc_time, idx);
+    args->total_requests, args->off_args,
+    args->off_req_state, args->offload_req_xfer, args->comps, stats->pre_proc_times,
+    stats->offload_tax_times, stats->ax_func_times,
+    stats->post_proc_times, args->idx);
 
   /* teardown */
-  // free_contexts(off_req_state, total_requests);
-  // free(comps);
   offload_args_free(total_requests, &off_args);
-  // free(ts0);
-  // free(ts1);
-  // free(ts2);
-  // free(ts3);
-  // free(ts4);
-
   executor_args_free(args);
 
   fcontext_destroy(self);

@@ -77,6 +77,7 @@ void alloc_executor_args(executor_args_t **p_args, int idx, int total_requests){
   executor_args_t *args;
   args = (executor_args_t *)malloc(sizeof(executor_args_t));
   args->total_requests = total_requests;
+  args->idx = idx;
 
   args->ts0 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
   args->ts1 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
@@ -103,9 +104,12 @@ void free_executor_args(executor_args_t *args){
   free(args->ts4);
 
   free(args->comps);
+  free_contexts(args->off_req_state, args->total_requests);
+  free(args->offload_req_xfer);
+  free(args->off_req_state);
+
   free(args);
 
-  free_contexts(args->off_req_state, args->total_requests);
 }
 
 void alloc_breakdown_stats(executor_stats_t *stats, int iter){

@@ -74,7 +74,7 @@ void run_three_phase_offload_timed(
       three_phase_executor,
       total_requests, initial_payload_size, max_axfunc_output_size,
       max_post_proc_output_size,
-      stats->pre_proc_times, stats->offload_tax_times, stats->ax_func_times, stats->post_proc_times, i
+      stats, i
     );
   }
   // print_mean_median_stdev(pre_proc_time, iter, "PreProcFunc");

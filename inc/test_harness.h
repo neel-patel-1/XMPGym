@@ -66,8 +66,7 @@ void three_phase_offload_timed_breakdown(
   three_phase_executor_fn_t three_phase_executor,
   int total_requests, int initial_payload_size, int max_axfunc_output_size,
   int max_post_proc_output_size,
-  uint64_t *pre_proc_time, uint64_t *offload_tax_time,
-  uint64_t *ax_func_time, uint64_t *post_proc_time, int idx
+  executor_stats_t *stats, int idx
 );
 
 /* Two Phase Harnesses */
