@@ -15,6 +15,7 @@ void execute_three_phase_blocking_requests_closed_system_request_breakdown(
     /* pass in the times we measure and idx to populate */
 {
   int next_unstarted_req_idx = 0;
+  int requests_completed = 0;
 
   while(requests_completed < total_requests){
     fcontext_swap(off_req_state[next_unstarted_req_idx]->context, off_args[next_unstarted_req_idx]);
@@ -57,7 +58,7 @@ void execute_three_phase_yielding_requests_closed_system_request_breakdown(
   int next_unstarted_req_idx = 0;
   int next_request_offload_to_complete_idx = 0;
 
-  while(requests_completed < total_requests){
+  while(next_request_offload_to_complete_idx < total_requests){
     if(comps[next_request_offload_to_complete_idx].status == COMP_STATUS_COMPLETED){
       fcontext_swap(offload_req_xfer[next_request_offload_to_complete_idx].prev_context, NULL);
       next_request_offload_to_complete_idx++;

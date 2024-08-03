@@ -10,7 +10,6 @@ extern "C" {
 #include "emul_ax.h"
 #include "stats.h"
 
-
 typedef void (*offload_args_allocator_fn_t)(
   int total_requests,
   int initial_payload_size,
