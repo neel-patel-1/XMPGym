@@ -22,6 +22,8 @@ extern "C" {
 
 #include "ippcp.h"
 
+IppsAES_GCMState *pState = NULL;
+
 typedef void (*offload_args_allocator_fn_t)(
   int total_requests,
   int initial_payload_size,
@@ -217,11 +219,54 @@ void gen_encrypted_feature(int payload_size, void **p_msgbuf, int *outsize){
     LOG_PRINT(LOG_ERR, "Failed to get AES GCM size\n");
   }
 
-  IppsAES_GCMState *pAES_GCM_ctx = (IppsAES_GCMState *)malloc(ippAES_GCM_ctx_size);
+  if(pState != NULL){
+    free(pState);
+  }
+  pState = (IppsAES_GCMState *)malloc(ippAES_GCM_ctx_size);
+  int keysize = 16;
+  int ivsize = 12;
+  int aadSize = 16;
+  int taglen = 16;
+  Ipp8u *pKey = (Ipp8u *)malloc(keysize);
+  Ipp8u *pIV = (Ipp8u *)malloc(ivsize);
+  Ipp8u *pAAD = (Ipp8u *)malloc(aadSize);
+  Ipp8u *pSrc = (Ipp8u *)gen_compressible_buf("01234567", payload_size);
+  Ipp8u *pDst = (Ipp8u *)malloc(payload_size);
+  Ipp8u *pTag = (Ipp8u *)malloc(taglen);
 
-  Ipp8u *pKey = (Ipp8u *)malloc(16);
+  LOG_PRINT(LOG_VERBOSE, "Plaintext: %s\n", pSrc);
 
-  status = ippsAES_GCMInit(pKey, 16, pAES_GCM_ctx, ippAES_GCM_ctx_size);
+  status = ippsAES_GCMInit(pKey, keysize, pState, ippAES_GCM_ctx_size);
+  if(status != ippStsNoErr){
+    LOG_PRINT(LOG_ERR, "Failed to init AES GCM\n");
+  }
+
+  status = ippsAES_GCMStart(pIV, ivsize, pAAD, aadSize, pState);
+  if(status != ippStsNoErr){
+    LOG_PRINT(LOG_ERR, "Failed to start AES GCM\n");
+  }
+
+  status = ippsAES_GCMEncrypt(pSrc, pDst, payload_size, pState);
+  if(status != ippStsNoErr){
+    LOG_PRINT(LOG_ERR, "Failed to encrypt AES GCM\n");
+  }
+
+  status = ippsAES_GCMGetTag(pTag, taglen, pState);
+  if(status != ippStsNoErr){
+    LOG_PRINT(LOG_ERR, "Failed to get tag AES GCM\n");
+  }
+
+  LOG_PRINT(LOG_VERBOSE, "Ciphertext: %s\n", pDst);
+
+  free(pState);
+
+  *p_msgbuf = (void *)pDst;
+  *outsize = payload_size;
+
+}
+
+void decrypt_feature(void *cipher_inp, void *plain_out, int input_size, int *output_size){
+  assert(pState != NULL);
 }
 
 void gen_compressed_serialized_put_request(int payload_size, void **p_msgbuf, int *outsize){
@@ -480,9 +525,6 @@ int main(int argc, char **argv){
   int dev_id = 1;
   int wq_type = SHARED;
 
-
-
-
   int opt;
   int itr = 100;
   int total_requests = 1000;
@@ -491,6 +533,13 @@ int main(int argc, char **argv){
   bool do_block = false;
   bool do_gpcore = false;
   bool do_yield = false;
+
+  void *p_msgbuf;
+  int outsize;
+
+  gen_encrypted_feature(payload_size, &p_msgbuf, &outsize);
+
+  return 0;
 
   while((opt = getopt(argc, argv, "t:i:s:bgy")) != -1){
     switch(opt){

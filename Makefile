@@ -15,7 +15,7 @@ INCLUDES = -I./inc $(IAA_INCLUDES) $(ACCFG_INCLUDES) $(IDXD_INCLUDES) $(PROTO_IN
 IAA_LIBS = -L$(current_dir)/idxd-config/test -liaa -lz -lcrypto
 ACCFG_LIBS = -L$(current_dir)/idxd-config/accfg/lib -laccel-config
 
-IPP_CRYPTO_LIB = -L/opt/intel/oneapi/ippcp/2021.11/lib/ -lippcp
+IPP_CRYPTO_LIB = -L/opt/intel/oneapi/ippcp/2021.11/lib/ -L/home/d552q900/intel/oneapi/compiler/2024.0/lib -lippcp -lirc
 
 LIBS = -ldml $(IAA_LIBS) $(ACCFG_LIBS)
 
