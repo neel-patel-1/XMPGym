@@ -82,3 +82,26 @@ void free_three_phase_stamped_args(
   }
   free(*off_args);
 }
+
+
+void alloc_throughput_stats(executor_stats_t *stats, int iter){
+  stats->exe_time_start = (uint64_t *)malloc(sizeof(uint64_t) * iter);
+  stats->exe_time_end = (uint64_t *)malloc(sizeof(uint64_t) * iter);
+  stats->iter = iter;
+}
+
+void free_throughput_stats(executor_stats_t *stats){
+  free(stats->exe_time_start);
+  free(stats->exe_time_end);
+}
+
+void print_throughput_stats(executor_stats_t *stats, int iter, int total_requests){
+  uint64_t exe_times[iter];
+  for(int i=0; i<iter; i++){
+    exe_times[i] = stats->exe_time_end[i] - stats->exe_time_start[i];
+  }
+  mean_median_stdev_rps(
+    exe_times, iter, total_requests, "RPS"
+  );
+}
+

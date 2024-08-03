@@ -70,7 +70,7 @@ void alloc_blocking_request_deser_decomp_hash_executor_args(executor_args_t **p_
   *p_args = args;
 }
 
-void free_throughput_executor_args(executor_args_t *args){
+void free_deser_decomp_hash_executor_args(executor_args_t *args){
   free(args->ts0);
   free(args->ts1);
   free(args->ts2);
@@ -81,68 +81,6 @@ void free_throughput_executor_args(executor_args_t *args){
   free(args->comps);
   free(args);
 }
-
-
-
-void run_three_phase_offload(
-  executor_args_allocator_fn_t executor_args_allocator,
-  executor_args_free_fn_t executor_args_free,
-  executor_stats_allocator_fn_t executor_stats_allocator,
-  executor_stats_free_fn_t executor_stats_free,
-  executor_stats_processor_fn_t executor_stats_processor,
-  offload_args_allocator_fn_t offload_args_allocator,
-  offload_args_free_fn_t offload_args_free,
-  input_generator_fn_t input_generator,
-  executor_fn_t three_phase_executor,
-  int iter, int total_requests, int initial_payload_size, int max_axfunc_output_size,
-  int max_post_proc_output_size
-){
-  executor_stats_t *stats;
-  executor_args_t *args;
-
-  stats = (executor_stats_t *)malloc(sizeof(executor_stats_t));
-  executor_stats_allocator(stats, iter);
-
-  for(int i=0; i<iter; i++){
-    three_phase_harness(
-      executor_args_allocator,
-      executor_args_free,
-      offload_args_allocator,
-      offload_args_free,
-      input_generator,
-      three_phase_executor,
-      stats,
-      total_requests, initial_payload_size, max_axfunc_output_size,
-      max_post_proc_output_size,
-      i
-    );
-  }
-  executor_stats_processor(stats, iter, total_requests);
-  executor_stats_free(stats);
-}
-
-void alloc_throughput_stats(executor_stats_t *stats, int iter){
-  stats->exe_time_start = (uint64_t *)malloc(sizeof(uint64_t) * iter);
-  stats->exe_time_end = (uint64_t *)malloc(sizeof(uint64_t) * iter);
-  stats->iter = iter;
-}
-
-void free_throughput_stats(executor_stats_t *stats){
-  free(stats->exe_time_start);
-  free(stats->exe_time_end);
-}
-
-void print_throughput_stats(executor_stats_t *stats, int iter, int total_requests){
-  uint64_t exe_times[iter];
-  for(int i=0; i<iter; i++){
-    exe_times[i] = stats->exe_time_end[i] - stats->exe_time_start[i];
-  }
-  mean_median_stdev_rps(
-    exe_times, iter, total_requests, "RPS"
-  );
-}
-
-
 
 static inline void dot_product(void *feature, void *plain_out, int input_size, int *output_size){
   float sum = 0;
@@ -454,7 +392,7 @@ int main(int argc, char **argv){
 
     run_three_phase_offload(
       alloc_blocking_request_deser_decomp_hash_executor_args,
-      free_throughput_executor_args,
+      free_deser_decomp_hash_executor_args,
       alloc_throughput_stats,
       free_throughput_stats,
       print_throughput_stats,
@@ -478,7 +416,7 @@ int main(int argc, char **argv){
 
     run_three_phase_offload(
       alloc_yielding_same_request_deser_decomp_hash_executor_args,
-      free_throughput_executor_args,
+      free_deser_decomp_hash_executor_args,
       alloc_throughput_stats,
       free_throughput_stats,
       print_throughput_stats,

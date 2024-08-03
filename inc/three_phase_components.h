@@ -11,6 +11,8 @@ extern "C" {
 #include "stats.h"
 
 uLong get_compress_bound(int payload_size);
+
+/* Request Argument Allocator/Free passed to runner */
 void three_func_allocator(
   int total_requests,
   int initial_payload_size,
@@ -28,6 +30,15 @@ void free_three_phase_stamped_args(
   timed_offload_request_args ***off_args
 );
 
+/* Executor Arg Allocator and Free Not Included -- since they are specific to Apps */
+
+/* Stats Allocator/Free/Print */
+void alloc_throughput_stats(executor_stats_t *stats, int iter);
+void free_throughput_stats(executor_stats_t *stats);
+void print_throughput_stats(executor_stats_t *stats, int iter, int total_requests);
+
+
+/* Generic function templates passed to runner */
 static void complete_request_and_switch_to_scheduler(fcontext_transfer_t arg);
 template <typename pre_proc_fn,
   typename prep_desc_fn, typename submit_desc_fn,
