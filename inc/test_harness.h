@@ -9,6 +9,63 @@ extern "C" {
 #include "offload.h"
 #include "context_management.h"
 
+
+typedef void (*offload_args_allocator_fn_t)(
+  int total_requests,
+  int initial_payload_size,
+  int max_axfunc_output_size,
+  int max_post_proc_output_size,
+  void input_generator(int, void **, int *),
+  timed_offload_request_args ***offload_args,
+  ax_comp *comps, uint64_t *ts0,
+  uint64_t *ts1, uint64_t *ts2,
+  uint64_t *ts3, uint64_t *ts4
+);
+
+typedef void (*offload_args_free_fn_t)(int, timed_offload_request_args***);
+
+typedef void (*input_generator_fn_t)(int, void **, int *);
+
+typedef void (*three_phase_executor_fn_t)(
+  int total_requests,
+  timed_offload_request_args **off_args,
+  fcontext_state_t **off_req_state,
+  fcontext_transfer_t *offload_req_xfer,
+  ax_comp *comps,
+  uint64_t *pre_proc_times,
+  uint64_t *offload_tax_times,
+  uint64_t *ax_func_times,
+  uint64_t *post_proc_times,
+  int idx
+);
+
+/* Three Phase Harnesses */
+void three_phase_harness(
+  executor_args_allocator_fn_t executor_args_allocator,
+  executor_args_free_fn_t executor_args_free,
+  offload_args_allocator_fn_t offload_args_allocator,
+  offload_args_free_fn_t offload_args_free,
+  input_generator_fn_t input_generator,
+  executor_fn_t three_phase_executor,
+  executor_stats_t *stats,
+  int total_requests, int initial_payload_size, int max_axfunc_output_size,
+  int max_post_proc_output_size,
+  int idx
+);
+
+void three_phase_offload_timed_breakdown(
+  fcontext_fn_t request_fn,
+  offload_args_allocator_fn_t offload_args_allocator,
+  offload_args_free_fn_t offload_args_free,
+  input_generator_fn_t input_generator,
+  three_phase_executor_fn_t three_phase_executor,
+  int total_requests, int initial_payload_size, int max_axfunc_output_size,
+  int max_post_proc_output_size,
+  uint64_t *pre_proc_time, uint64_t *offload_tax_time,
+  uint64_t *ax_func_time, uint64_t *post_proc_time, int idx
+);
+
+/* Two Phase Harnesses */
 extern int requests_completed;
 
 void blocking_ax_closed_loop_test(

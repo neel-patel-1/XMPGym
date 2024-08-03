@@ -1,5 +1,39 @@
 #include "runners.h"
 
+
+void run_three_phase_offload_timed(
+  fcontext_fn_t request_fn,
+  offload_args_allocator_fn_t offload_args_allocator,
+  offload_args_free_fn_t offload_args_free,
+  input_generator_fn_t input_generator,
+  three_phase_executor_fn_t three_phase_executor,
+  int iter, int total_requests, int initial_payload_size, int max_axfunc_output_size,
+  int max_post_proc_output_size
+){
+  uint64_t *pre_proc_time, *offload_tax_time, *ax_func_time, *post_proc_time;
+  pre_proc_time = (uint64_t *)malloc(sizeof(uint64_t) * iter);
+  offload_tax_time = (uint64_t *)malloc(sizeof(uint64_t) * iter);
+  ax_func_time = (uint64_t *)malloc(sizeof(uint64_t) * iter);
+  post_proc_time = (uint64_t *)malloc(sizeof(uint64_t) * iter);
+
+  for(int i=0; i<iter; i++){
+    three_phase_offload_timed_breakdown(
+      request_fn,
+      offload_args_allocator,
+      offload_args_free,
+      input_generator,
+      three_phase_executor,
+      total_requests, initial_payload_size, max_axfunc_output_size,
+      max_post_proc_output_size,
+      pre_proc_time, offload_tax_time, ax_func_time, post_proc_time, i
+    );
+  }
+  print_mean_median_stdev(pre_proc_time, iter, "PreProcFunc");
+  print_mean_median_stdev(offload_tax_time, iter, "OffloadTax");
+  print_mean_median_stdev(ax_func_time, iter, "AxFunc");
+  print_mean_median_stdev(post_proc_time, iter, "PostProcFunc");
+}
+
 uint64_t run_gpcore_request_brkdown(fcontext_fn_t req_fn,
   void (*payload_alloc)(int,char****),
   void (*payload_free)(int,char****),

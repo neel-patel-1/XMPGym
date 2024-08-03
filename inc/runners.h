@@ -10,6 +10,19 @@ extern "C"{
 #include "test_harness.h"
 #include "stats.h"
 
+/* Three Phase Runners */
+void run_three_phase_offload_timed(
+  fcontext_fn_t request_fn,
+  offload_args_allocator_fn_t offload_args_allocator,
+  offload_args_free_fn_t offload_args_free,
+  input_generator_fn_t input_generator,
+  three_phase_executor_fn_t three_phase_executor,
+  int iter, int total_requests, int initial_payload_size, int max_axfunc_output_size,
+  int max_post_proc_output_size
+);
+
+
+/* Two Phase Runners */
 uint64_t run_gpcore_request_brkdown(fcontext_fn_t req_fn,
   void (*payload_alloc)(int,char****),
   void (*payload_free)(int,char****),
