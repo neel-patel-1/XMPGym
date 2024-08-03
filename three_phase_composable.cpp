@@ -21,91 +21,44 @@ extern "C" {
 #include "proto_files/router.pb.h"
 #include "ch3_hash.h"
 #include "wait.h"
-#include "ippcp.h"
+
+#include "decrypt.h"
 
 #include "three_phase_harness.h"
 
-IppsAES_GCMState *pState = NULL;
 
 
-void gen_encrypted_feature(int payload_size, void **p_msgbuf, int *outsize){
-  int ippAES_GCM_ctx_size;
-  IppStatus status;
+void execute_three_phase_blocking_requests_closed_system_throughput(
+  int total_requests,
+  timed_offload_request_args **off_args,
+  fcontext_state_t **off_req_state,
+  fcontext_transfer_t *offload_req_xfer,
+  ax_comp *comps,
+  uint64_t *pre_proc_times,
+  uint64_t *offload_tax_times,
+  uint64_t *ax_func_times,
+  uint64_t *post_proc_times,
+  int idx
+)
+    /* pass in the times we measure and idx to populate */
+{
+  int next_unstarted_req_idx = 0;
+  int requests_completed = 0;
+  uint64_t start, end;
 
-  status = ippsAES_GCMGetSize(&ippAES_GCM_ctx_size);
-  if(status != ippStsNoErr){
-    LOG_PRINT(LOG_ERR, "Failed to get AES GCM size\n");
+  start = sampleCoderdtsc();
+
+  while(requests_completed < total_requests){
+    fcontext_swap(off_req_state[next_unstarted_req_idx]->context, off_args[next_unstarted_req_idx]);
+    next_unstarted_req_idx++;
   }
 
-  if(pState != NULL){
-    free(pState);
-  }
-  pState = (IppsAES_GCMState *)malloc(ippAES_GCM_ctx_size);
-  int keysize = 16;
-  int ivsize = 12;
-  int aadSize = 16;
-  int taglen = 16;
-  Ipp8u *pKey = (Ipp8u *)"0123456789abcdef";
-  Ipp8u *pIV = (Ipp8u *)"0123456789ab";
-  Ipp8u *pAAD = (Ipp8u *)malloc(aadSize);
-  Ipp8u *pSrc = (Ipp8u *)gen_compressible_buf("01234567", payload_size);
-  Ipp8u *pDst = (Ipp8u *)malloc(payload_size);
-  Ipp8u *pTag = (Ipp8u *)malloc(taglen);
+  end = sampleCoderdtsc();
 
-  LOG_PRINT(LOG_VERBOSE, "Plaintext: %s\n", pSrc);
-
-  status = ippsAES_GCMInit(pKey, keysize, pState, ippAES_GCM_ctx_size);
-  if(status != ippStsNoErr){
-    LOG_PRINT(LOG_ERR, "Failed to init AES GCM\n");
-  }
-
-  status = ippsAES_GCMStart(pIV, ivsize, pAAD, aadSize, pState);
-  if(status != ippStsNoErr){
-    LOG_PRINT(LOG_ERR, "Failed to start AES GCM\n");
-  }
-
-  status = ippsAES_GCMEncrypt(pSrc, pDst, payload_size, pState);
-  if(status != ippStsNoErr){
-    LOG_PRINT(LOG_ERR, "Failed to encrypt AES GCM\n");
-  }
-
-  status = ippsAES_GCMGetTag(pTag, taglen, pState);
-  if(status != ippStsNoErr){
-    LOG_PRINT(LOG_ERR, "Failed to get tag AES GCM\n");
-  }
-
-  LOG_PRINT(LOG_VERBOSE, "Ciphertext: %s\n", pDst);
-
-  *p_msgbuf = (void *)pDst;
-  *outsize = payload_size;
 
 }
 
-static inline void decrypt_feature(void *cipher_inp, void *plain_out, int input_size, int *output_size){
-  Ipp8u *pKey = (Ipp8u *)"0123456789abcdef";
-  Ipp8u *pIV = (Ipp8u *)"0123456789ab";
-  int keysize = 16;
-  int ivsize = 12;
-  int aadSize = 16;
-  Ipp8u aad[aadSize];
-  IppStatus status;
 
-  status = ippsAES_GCMReset(pState);
-  if(status != ippStsNoErr){
-    LOG_PRINT(LOG_ERR, "Failed to reset AES GCM\n");
-  }
-  status = ippsAES_GCMStart(pIV, ivsize, aad, aadSize, pState);
-  if(status != ippStsNoErr){
-    LOG_PRINT(LOG_ERR, "Failed to start AES GCM\n");
-  }
-  status = ippsAES_GCMDecrypt((Ipp8u *)cipher_inp, (Ipp8u *)plain_out, input_size, pState);
-  if(status != ippStsNoErr){
-    LOG_PRINT(LOG_ERR, "Failed to decrypt AES GCM: %d\n", status);
-  }
-
-  LOG_PRINT(LOG_VERBOSE, "Decrypted: %s\n", (char *)plain_out);
-  *(int *)output_size = input_size;
-}
 
 static inline void dot_product(void *feature, void *plain_out, int input_size, int *output_size){
   float sum = 0;

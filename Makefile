@@ -10,7 +10,7 @@ PROTO_INCLUDES = -I$(current_dir)/
 
 IPP_CRYPTO_INCLUDES = -I/opt/intel/oneapi/ippcp/2021.11/include
 
-INCLUDES = -I./inc $(IAA_INCLUDES) $(ACCFG_INCLUDES) $(IDXD_INCLUDES) $(PROTO_INCLUDES)
+INCLUDES = -I./inc $(IAA_INCLUDES) $(ACCFG_INCLUDES) $(IDXD_INCLUDES) $(PROTO_INCLUDES) $(IPP_CRYPTO_INCLUDES)
 
 IAA_LIBS = -L$(current_dir)/idxd-config/test -liaa -lz -lcrypto
 ACCFG_LIBS = -L$(current_dir)/idxd-config/accfg/lib -laccel-config
@@ -134,8 +134,9 @@ THREE_PHASE_COMPOSABLE_OBJS = $(fcontext_obj) \
 	obj/pointer_chase.o \
 	obj/posting_list.o \
 	obj/payload_gen.o \
-	obj/three_phase_harness.o
-three_phase_composable.o: three_phase_composable.cpp inc/three_phase_harness.h inc/inline/three_phase_harness.ipp
+	obj/three_phase_harness.o \
+	obj/decrypt.o
+three_phase_composable.o: three_phase_composable.cpp inc/three_phase_harness.h inc/inline/three_phase_harness.ipp inc/inline/decrypt.ipp
 	$(CXX) $(CXXFLAGS) -c -o $@ $< $(INCLUDES) $(IPP_CRYPTO_INCLUDES) -fpermissive
 three_phase_composable: $(THREE_PHASE_COMPOSABLE_OBJS) three_phase_composable.o router.pb.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ -ldml $(LIBS) $(IPP_CRYPTO_LIB) `pkg-config --cflags --libs protobuf` -lippcp
