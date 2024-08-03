@@ -109,13 +109,17 @@ void execute_three_phase_yielding_requests_closed_system_request_breakdown(
 )
 {
   int next_unstarted_req_idx = 0;
+  int next_request_offload_to_complete_idx = 0;
 
   while(requests_completed < total_requests){
-    offload_req_xfer[next_unstarted_req_idx] = fcontext_swap(off_req_state[next_unstarted_req_idx]->context, off_args[next_unstarted_req_idx]);
-    while(off_args[next_unstarted_req_idx]->comp->status == IAX_COMP_NONE){
+    if(comps[next_request_offload_to_complete_idx].status == COMP_STATUS_COMPLETED){
+      fcontext_swap(offload_req_xfer[next_request_offload_to_complete_idx].prev_context, NULL);
+      next_request_offload_to_complete_idx++;
+    } else if(next_unstarted_req_idx < total_requests){
+      offload_req_xfer[next_unstarted_req_idx] =
+        fcontext_swap(off_req_state[next_unstarted_req_idx]->context, off_args[next_unstarted_req_idx]);
+      next_unstarted_req_idx++;
     }
-    fcontext_swap(offload_req_xfer[next_unstarted_req_idx].prev_context, NULL);
-    next_unstarted_req_idx++;
   }
 
   uint64_t *ts0 = off_args[0]->ts0;
