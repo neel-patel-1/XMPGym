@@ -34,6 +34,9 @@ static inline void generic_yielding_three_phase_timed(
   LOG_PRINT(LOG_DEBUG, "AXFuncOutputSize: %d\n", post_proc_input_size);
   LOG_PRINT(LOG_VERBOSE, "AXFuncOutput: %s \n", (char *)ax_func_output);
   fcontext_swap(arg.prev_context, NULL);
+  if(comp->status != COMP_STATUS_COMPLETED){
+    LOG_PRINT(LOG_ERR, "Error: %d\n", comp->status);
+  }
 
   ts3[idx] = sampleCoderdtsc();
   post_proc_input = ax_func_output;
@@ -76,6 +79,9 @@ static inline void generic_blocking_three_phase_timed(
 
   ts2[idx] = sampleCoderdtsc();
   post_offload_func(comp);
+  if(comp->status != COMP_STATUS_COMPLETED){
+    LOG_PRINT(LOG_ERR, "Error: %d\n", comp->status);
+  }
   LOG_PRINT(LOG_DEBUG, "AXFuncOutputSize: %d\n", post_proc_input_size);
   LOG_PRINT(LOG_VERBOSE, "AXFuncOutput: %s \n", (char *)ax_func_output);
 

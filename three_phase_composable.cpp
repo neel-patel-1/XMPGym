@@ -99,7 +99,7 @@ void execute_yielding_three_phase_request_throughput(
   start = sampleCoderdtsc();
 
   while(next_request_offload_to_complete_idx < total_requests){
-    if(comps[next_request_offload_to_complete_idx].status == COMP_STATUS_COMPLETED){
+    if(comps[next_request_offload_to_complete_idx].status != COMP_STATUS_PENDING){
       fcontext_swap(offload_req_xfer[next_request_offload_to_complete_idx].prev_context, NULL);
       LOG_PRINT(LOG_DEBUG, "Completed Request: %d\n", next_request_offload_to_complete_idx);
       next_request_offload_to_complete_idx++;
@@ -455,6 +455,9 @@ static inline void generic_yielding_three_phase(
   LOG_PRINT(LOG_DEBUG, "AXFuncOutputSize: %d\n", post_proc_input_size);
   LOG_PRINT(LOG_VERBOSE, "AXFuncOutput: %s \n", (char *)ax_func_output);
   fcontext_swap(arg.prev_context, NULL);
+  if(comp->status != COMP_STATUS_COMPLETED){
+    LOG_PRINT(LOG_ERR, "Error: %d\n", comp->status);
+  }
 
   post_proc_input = ax_func_output;
   post_proc_func(post_proc_input, post_proc_output, post_proc_input_size, &max_post_proc_output_size);
@@ -519,7 +522,7 @@ int main(int argc, char **argv){
   int outsize;
 
 
-  while((opt = getopt(argc, argv, "t:i:s:bgy")) != -1){
+  while((opt = getopt(argc, argv, "t:i:s:bgyd")) != -1){
     switch(opt){
       case 't':
         total_requests = atoi(optarg);
