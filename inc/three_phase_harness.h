@@ -136,6 +136,34 @@ static inline void generic_blocking_three_phase_timed(
   uint64_t *ts0, uint64_t *ts1, uint64_t *ts2, uint64_t *ts3, uint64_t *ts4, int idx
   );
 
+template <typename pre_proc_fn,
+  typename prep_desc_fn, typename submit_desc_fn, typename post_offload_fn,
+  typename desc_t, typename comp_record_t, typename ax_handle_t,
+  typename post_proc_fn,
+  typename preempt_signal_t>
+static inline void generic_blocking_three_phase(
+  preempt_signal_t sig, fcontext_transfer_t arg,
+  pre_proc_fn pre_proc_func, void *pre_proc_input, void *pre_proc_output, int pre_proc_input_size,
+  prep_desc_fn prep_func, submit_desc_fn submit_func, post_offload_fn post_offload_func,
+  comp_record_t *comp, desc_t *desc, ax_handle_t *ax,
+  void *ax_func_output, int max_axfunc_output_size,
+  post_proc_fn post_proc_func, void *post_proc_output, int post_proc_input_size, int max_post_proc_output_size
+  );
+
+template <typename pre_proc_fn,
+  typename prep_desc_fn, typename submit_desc_fn,
+  typename desc_t, typename comp_record_t, typename ax_handle_t,
+  typename post_proc_fn,
+  typename preempt_signal_t>
+static inline void generic_yielding_three_phase(
+  preempt_signal_t sig, fcontext_transfer_t arg,
+  pre_proc_fn pre_proc_func, void *pre_proc_input, void *pre_proc_output, int pre_proc_input_size,
+  prep_desc_fn prep_func, submit_desc_fn submit_func,
+  comp_record_t *comp, desc_t *desc, ax_handle_t *ax,
+  void *ax_func_output, int max_axfunc_output_size,
+  post_proc_fn post_proc_func, void *post_proc_output, int post_proc_input_size, int max_post_proc_output_size
+  );
+
 #include "inline/three_phase_harness.ipp"
 
 #endif

@@ -231,7 +231,7 @@ void three_func_allocator(
     off_args[i] = (timed_offload_request_args *)malloc(sizeof(timed_offload_request_args));
 
     input_generator(initial_payload_size,
-      &off_args[i]->pre_proc_input, &off_args[i]->pre_proc_input_size);
+      &(off_args[i]->pre_proc_input), &(off_args[i]->pre_proc_input_size));
     max_pre_proc_output_size = get_compress_bound(initial_payload_size);
     off_args[i]->pre_proc_output = (void *)malloc(max_pre_proc_output_size);
 
