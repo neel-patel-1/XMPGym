@@ -136,7 +136,10 @@ THREE_PHASE_COMPOSABLE_OBJS = $(fcontext_obj) \
 	obj/payload_gen.o \
 	obj/three_phase_components.o \
 	obj/decrypt.o
-three_phase_composable.o: three_phase_composable.cpp inc/three_phase_components.h inc/inline/three_phase_components.ipp inc/inline/decrypt.ipp
+THREE_PHASE_COMPOSABLE_DEPS = inc/three_phase_components.h \
+	inc/inline/three_phase_components.ipp \
+	inc/inline/decrypt.ipp inc/inline/gpcore_compress.ipp
+three_phase_composable.o: three_phase_composable.cpp $(THREE_PHASE_COMPOSABLE_DEPS)
 	$(CXX) $(CXXFLAGS) -c -o $@ $< $(INCLUDES) $(IPP_CRYPTO_INCLUDES) -fpermissive
 three_phase_composable: $(THREE_PHASE_COMPOSABLE_OBJS) three_phase_composable.o router.pb.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ -ldml $(LIBS) $(IPP_CRYPTO_LIB) `pkg-config --cflags --libs protobuf` -lippcp

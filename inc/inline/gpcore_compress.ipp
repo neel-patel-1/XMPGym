@@ -109,3 +109,47 @@ static inline int gpcore_do_decompress(void *dst, void *src, uInt src_len, uLong
 	*out_len = stream.total_out;
 	return ret;
 }
+
+static inline void gpcore_do_deflate_decompress(void *src, void *dst, int src_len, int *out_len)
+{
+	int ret = 0;
+	z_stream stream;
+  int avail_out  = *out_len;
+
+	memset(&stream, 0, sizeof(z_stream));
+
+	/* allocate inflate state */
+	ret = inflateInit2(&stream, -MAX_WBITS);
+	if (ret) {
+		LOG_PRINT( LOG_ERR, "Error inflateInit2 status %d\n", ret);
+		return;;
+	}
+
+	stream.avail_in = (uInt)src_len;
+	stream.next_in = (Bytef *)src;
+	stream.avail_out = (uInt)avail_out;
+	stream.next_out = (Bytef *)dst;
+
+  dump_inflate_state(&stream);
+
+	do {
+		ret = inflate(&stream, Z_NO_FLUSH);
+
+		if (ret == Z_NEED_DICT || ret == Z_DATA_ERROR || ret == Z_MEM_ERROR) {
+			inflateEnd(&stream);
+			LOG_PRINT( LOG_ERR, "Error inflate status %d\n", ret);
+			return;;
+		}
+    dump_inflate_state(&stream);
+	} while (ret != Z_STREAM_END);
+
+	ret = inflateEnd(&stream);
+	if (ret) {
+		LOG_PRINT( LOG_ERR, "Error inflateEnd status %d\n", ret);
+		return;;
+	}
+  dump_inflate_state(&stream);
+
+	*out_len = (int)(stream.total_out);
+	return;;
+}

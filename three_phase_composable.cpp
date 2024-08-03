@@ -319,6 +319,112 @@ void deser_decomp_hash_blocking(fcontext_transfer_t arg){
   complete_request_and_switch_to_scheduler(arg);
 }
 
+template <typename pre_proc_fn,
+  typename ax_fn,
+  typename post_proc_fn,
+  typename preempt_signal_t>
+static inline void generic_gpcore_three_phase(
+  preempt_signal_t sig, fcontext_transfer_t arg,
+  pre_proc_fn pre_proc_func, void *pre_proc_input, void *pre_proc_output, int pre_proc_input_size,
+  ax_fn ax_func, void *ax_func_output, int max_axfunc_output_size,
+  post_proc_fn post_proc_func, void *post_proc_output, int post_proc_input_size, int max_post_proc_output_size
+  )
+{
+  int preproc_output_size, ax_input_size;
+  void *ax_func_input;
+  void *post_proc_input;
+
+
+  pre_proc_func(pre_proc_input, pre_proc_output, pre_proc_input_size, &preproc_output_size);
+  LOG_PRINT(LOG_DEBUG, "PreProcOutputSize: %d\n", preproc_output_size);
+
+  ax_input_size = preproc_output_size;
+  ax_func_input = pre_proc_output;
+
+  ax_func(ax_func_input, ax_func_output, ax_input_size, &max_axfunc_output_size);
+  LOG_PRINT(LOG_DEBUG, "AXFuncOutputSize: %d\n", post_proc_input_size);
+  LOG_PRINT(LOG_VERBOSE, "AXFuncOutput: %s \n", (char *)ax_func_output);
+
+
+  post_proc_input = ax_func_output;
+  post_proc_func(post_proc_input, post_proc_output, post_proc_input_size, &max_post_proc_output_size);
+  LOG_PRINT(LOG_DEBUG, "PostProcOutputSize: %d\n", max_post_proc_output_size);
+
+
+  return;
+}
+
+template <typename pre_proc_fn,
+  typename ax_fn,
+  typename post_proc_fn,
+  typename preempt_signal_t>
+static inline void generic_gpcore_three_phase_timed(
+  preempt_signal_t sig, fcontext_transfer_t arg,
+  pre_proc_fn pre_proc_func, void *pre_proc_input, void *pre_proc_output, int pre_proc_input_size,
+  ax_fn ax_func, void *ax_func_output, int max_axfunc_output_size,
+  post_proc_fn post_proc_func, void *post_proc_output, int post_proc_input_size, int max_post_proc_output_size,
+  uint64_t *ts0, uint64_t *ts1, uint64_t *ts2, uint64_t *ts3, uint64_t *ts4, int idx
+  )
+{
+  int preproc_output_size, ax_input_size;
+  void *ax_func_input;
+  void *post_proc_input;
+
+  ts0[idx] = sampleCoderdtsc();
+  pre_proc_func(pre_proc_input, pre_proc_output, pre_proc_input_size, &preproc_output_size);
+  LOG_PRINT(LOG_DEBUG, "PreProcOutputSize: %d\n", preproc_output_size);
+
+  ts1[idx] = sampleCoderdtsc();
+  ts2[idx] = sampleCoderdtsc();
+  ax_input_size = preproc_output_size;
+  ax_func_input = pre_proc_output;
+  ax_func(ax_func_input, ax_func_output, ax_input_size, &max_axfunc_output_size);
+  LOG_PRINT(LOG_DEBUG, "AXFuncOutputSize: %d\n", post_proc_input_size);
+  LOG_PRINT(LOG_VERBOSE, "AXFuncOutput: %s \n", (char *)ax_func_output);
+  ts3[idx] = sampleCoderdtsc();
+
+
+  post_proc_input = ax_func_output;
+  post_proc_func(post_proc_input, post_proc_output, post_proc_input_size, &max_post_proc_output_size);
+  LOG_PRINT(LOG_DEBUG, "PostProcOutputSize: %d\n", max_post_proc_output_size);
+  ts4[idx] = sampleCoderdtsc();
+
+  return;
+}
+
+void deser_decomp_hash_gpcore_stamped(fcontext_transfer_t arg){
+  timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
+
+  void *pre_proc_input = args->pre_proc_input;
+  void *pre_proc_output = args->pre_proc_output;
+  int pre_proc_input_size = args->pre_proc_input_size;
+
+  void *ax_func_output = args->ax_func_output;
+  int max_axfunc_output_size = args->max_axfunc_output_size;
+
+  void *post_proc_output = args->post_proc_output;
+  int post_proc_input_size = args->post_proc_input_size;
+  int max_post_proc_output_size = args->max_post_proc_output_size;
+
+  uint64_t *ts0 = args->ts0;
+  uint64_t *ts1 = args->ts1;
+  uint64_t *ts2 = args->ts2;
+  uint64_t *ts3 = args->ts3;
+  uint64_t *ts4 = args->ts4;
+  int id = args->id;
+
+  generic_gpcore_three_phase_timed(
+    NULL, arg,
+    deser_from_buf, pre_proc_input, pre_proc_output, pre_proc_input_size,
+    gpcore_do_deflate_decompress, ax_func_output, max_axfunc_output_size,
+    hash_buf, post_proc_output, post_proc_input_size, max_post_proc_output_size,
+    ts0, ts1, ts2, ts3, ts4, id
+  );
+
+  complete_request_and_switch_to_scheduler(arg);
+}
+
+
 
 
 
@@ -363,6 +469,9 @@ int main(int argc, char **argv){
       case 'b':
         do_block = true;
         break;
+      case 'g':
+        do_gpcore = true;
+        break;
       case 'd':
         gLogLevel = LOG_DEBUG;
         break;
@@ -381,6 +490,16 @@ int main(int argc, char **argv){
   }
 
   if(do_block){
+    // run_three_phase_offload_timed(
+    //   decrypt_memcpy_score_blocking_stamped,
+    //   three_func_allocator,
+    //   free_three_phase_stamped_args,
+    //   gen_encrypted_feature,
+    //   execute_three_phase_blocking_requests_closed_system_request_breakdown,
+    //   itr, total_requests, payload_size, payload_size, final_output_size
+    // );
+
+
     run_three_phase_offload_timed(
       deser_decomp_hash_blocking_stamped,
       three_func_allocator,
@@ -390,18 +509,18 @@ int main(int argc, char **argv){
       itr, total_requests, payload_size, payload_size, final_output_size
     );
 
-    run_three_phase_offload(
-      alloc_blocking_request_deser_decomp_hash_executor_args,
-      free_deser_decomp_hash_executor_args,
-      alloc_throughput_stats,
-      free_throughput_stats,
-      print_throughput_stats,
-      three_func_allocator,
-      free_three_phase_stamped_args,
-      gen_compressed_serialized_put_request,
-      execute_three_phase_blocking_requests_closed_system_throughput,
-      itr, total_requests, payload_size, payload_size, final_output_size
-    );
+    // run_three_phase_offload(
+    //   alloc_blocking_request_deser_decomp_hash_executor_args,
+    //   free_deser_decomp_hash_executor_args,
+    //   alloc_throughput_stats,
+    //   free_throughput_stats,
+    //   print_throughput_stats,
+    //   three_func_allocator,
+    //   free_three_phase_stamped_args,
+    //   gen_compressed_serialized_put_request,
+    //   execute_three_phase_blocking_requests_closed_system_throughput,
+    //   itr, total_requests, payload_size, payload_size, final_output_size
+    // );
   }
 
   if(do_yield){
@@ -414,19 +533,30 @@ int main(int argc, char **argv){
       itr, total_requests, payload_size, payload_size, final_output_size
     );
 
-    run_three_phase_offload(
-      alloc_yielding_same_request_deser_decomp_hash_executor_args,
-      free_deser_decomp_hash_executor_args,
-      alloc_throughput_stats,
-      free_throughput_stats,
-      print_throughput_stats,
+    // run_three_phase_offload(
+    //   alloc_yielding_same_request_deser_decomp_hash_executor_args,
+    //   free_deser_decomp_hash_executor_args,
+    //   alloc_throughput_stats,
+    //   free_throughput_stats,
+    //   print_throughput_stats,
+    //   three_func_allocator,
+    //   free_three_phase_stamped_args,
+    //   gen_compressed_serialized_put_request,
+    //   execute_yielding_three_phase_request_throughput,
+    //   itr, total_requests, payload_size, payload_size, final_output_size
+    // );
+
+  }
+
+  if(do_gpcore){
+    run_three_phase_offload_timed(
+      deser_decomp_hash_gpcore_stamped,
       three_func_allocator,
       free_three_phase_stamped_args,
       gen_compressed_serialized_put_request,
-      execute_yielding_three_phase_request_throughput,
+      execute_three_phase_blocking_requests_closed_system_request_breakdown,
       itr, total_requests, payload_size, payload_size, final_output_size
     );
-
   }
 
 
