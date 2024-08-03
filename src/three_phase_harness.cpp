@@ -15,9 +15,8 @@ void execute_three_phase_blocking_requests_closed_system_request_breakdown(
     /* pass in the times we measure and idx to populate */
 {
   int next_unstarted_req_idx = 0;
-  int requests_completed = 0;
 
-  while(requests_completed < total_requests){
+  while(next_unstarted_req_idx < total_requests){
     fcontext_swap(off_req_state[next_unstarted_req_idx]->context, off_args[next_unstarted_req_idx]);
     next_unstarted_req_idx++;
   }
@@ -29,16 +28,16 @@ void execute_three_phase_blocking_requests_closed_system_request_breakdown(
   uint64_t *ts4 = off_args[0]->ts4;
   uint64_t avg, diff[total_requests];
 
-  avg_samples_from_arrays(diff, pre_proc_times[idx], ts1, ts0, requests_completed);
+  avg_samples_from_arrays(diff, pre_proc_times[idx], ts1, ts0, total_requests);
   LOG_PRINT( LOG_DEBUG, "PreProcTime: %lu\n", pre_proc_times[idx]);
 
-  avg_samples_from_arrays(diff, offload_tax_times[idx], ts2, ts1, requests_completed);
+  avg_samples_from_arrays(diff, offload_tax_times[idx], ts2, ts1, total_requests);
   LOG_PRINT( LOG_DEBUG, "OffloadTaxTime: %lu\n", offload_tax_times[idx]);
 
-  avg_samples_from_arrays(diff, ax_func_times[idx], ts3, ts2, requests_completed);
+  avg_samples_from_arrays(diff, ax_func_times[idx], ts3, ts2, total_requests);
   LOG_PRINT( LOG_DEBUG, "AxFuncTime: %lu\n", ax_func_times[idx]);
 
-  avg_samples_from_arrays(diff, post_proc_times[idx], ts4, ts3, requests_completed);
+  avg_samples_from_arrays(diff, post_proc_times[idx], ts4, ts3, total_requests);
   LOG_PRINT( LOG_DEBUG, "PostProcTime: %lu\n", post_proc_times[idx]);
 }
 
@@ -59,12 +58,14 @@ void execute_three_phase_yielding_requests_closed_system_request_breakdown(
   int next_request_offload_to_complete_idx = 0;
 
   while(next_request_offload_to_complete_idx < total_requests){
-    if(comps[next_request_offload_to_complete_idx].status == COMP_STATUS_COMPLETED){
+    if(comps[next_request_offload_to_complete_idx].status != COMP_STATUS_PENDING){
       fcontext_swap(offload_req_xfer[next_request_offload_to_complete_idx].prev_context, NULL);
+      LOG_PRINT( LOG_DEBUG, "Completed %d\n", next_request_offload_to_complete_idx);
       next_request_offload_to_complete_idx++;
     } else if(next_unstarted_req_idx < total_requests){
       offload_req_xfer[next_unstarted_req_idx] =
         fcontext_swap(off_req_state[next_unstarted_req_idx]->context, off_args[next_unstarted_req_idx]);
+      LOG_PRINT( LOG_DEBUG, "Started %d\n", next_unstarted_req_idx);
       next_unstarted_req_idx++;
     }
   }
@@ -76,16 +77,16 @@ void execute_three_phase_yielding_requests_closed_system_request_breakdown(
   uint64_t *ts4 = off_args[0]->ts4;
   uint64_t avg, diff[total_requests];
 
-  avg_samples_from_arrays(diff, pre_proc_times[idx], ts1, ts0, requests_completed);
+  avg_samples_from_arrays(diff, pre_proc_times[idx], ts1, ts0, total_requests);
   LOG_PRINT( LOG_DEBUG, "PreProcTime: %lu\n", pre_proc_times[idx]);
 
-  avg_samples_from_arrays(diff, offload_tax_times[idx], ts2, ts1, requests_completed);
+  avg_samples_from_arrays(diff, offload_tax_times[idx], ts2, ts1, total_requests);
   LOG_PRINT( LOG_DEBUG, "OffloadTaxTime: %lu\n", offload_tax_times[idx]);
 
-  avg_samples_from_arrays(diff, ax_func_times[idx], ts3, ts2, requests_completed);
+  avg_samples_from_arrays(diff, ax_func_times[idx], ts3, ts2, total_requests);
   LOG_PRINT( LOG_DEBUG, "AxFuncTime: %lu\n", ax_func_times[idx]);
 
-  avg_samples_from_arrays(diff, post_proc_times[idx], ts4, ts3, requests_completed);
+  avg_samples_from_arrays(diff, post_proc_times[idx], ts4, ts3, total_requests);
   LOG_PRINT( LOG_DEBUG, "PostProcTime: %lu\n", post_proc_times[idx]);
 }
 

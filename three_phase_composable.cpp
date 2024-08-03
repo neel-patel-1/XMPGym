@@ -89,12 +89,26 @@ void execute_yielding_three_phase_request_throughput(
   timed_offload_request_args **off_args = args->off_args;
   fcontext_state_t **off_req_state = args->off_req_state;
   fcontext_transfer_t *offload_req_xfer = args->offload_req_xfer;
+  ax_comp *comps = args->comps;
+
+  int next_unstarted_req_idx = 0;
+  int next_request_offload_to_complete_idx = 0;
+
+  LOG_PRINT(LOG_DEBUG, "Total Requests:%d\n", total_requests);
 
   start = sampleCoderdtsc();
 
-  while(requests_completed < total_requests){
-    fcontext_swap(off_req_state[requests_completed]->context, off_args[requests_completed]);
-    requests_completed++;
+  while(next_request_offload_to_complete_idx < total_requests){
+    if(comps[next_request_offload_to_complete_idx].status == COMP_STATUS_COMPLETED){
+      fcontext_swap(offload_req_xfer[next_request_offload_to_complete_idx].prev_context, NULL);
+      LOG_PRINT(LOG_DEBUG, "Completed Request: %d\n", next_request_offload_to_complete_idx);
+      next_request_offload_to_complete_idx++;
+    } else if(next_unstarted_req_idx < total_requests){
+      offload_req_xfer[next_unstarted_req_idx] =
+        fcontext_swap(off_req_state[next_unstarted_req_idx]->context, off_args[next_unstarted_req_idx]);
+      LOG_PRINT(LOG_DEBUG, "Started Request: %d\n", next_unstarted_req_idx);
+      next_unstarted_req_idx++;
+    }
   }
 
   end = sampleCoderdtsc();
@@ -154,7 +168,7 @@ void alloc_deser_decomp_hash_executor_args(executor_args_t **p_args, int total_r
   args->off_req_state = (fcontext_state_t **)malloc(sizeof(fcontext_state_t *) * total_requests);
   args->offload_req_xfer = (fcontext_transfer_t *)malloc(sizeof(fcontext_transfer_t) * total_requests);
   create_contexts(args->off_req_state, total_requests, deser_decomp_hash_yielding);
-  allocate_crs(total_requests, &args->comps);
+  allocate_crs(total_requests, &(args->comps));
 
   *p_args = args;
 }
@@ -519,6 +533,12 @@ int main(int argc, char **argv){
       case 'y':
         do_yield = true;
         break;
+      case 'b':
+        do_block = true;
+        break;
+      case 'd':
+        gLogLevel = LOG_DEBUG;
+        break;
       default:
         break;
     }
@@ -543,25 +563,25 @@ int main(int argc, char **argv){
       itr, total_requests, payload_size, payload_size, final_output_size
     );
 
-    run_three_phase_offload_timed(
-      decrypt_memcpy_score_blocking_stamped,
-      three_func_allocator,
-      free_three_phase_stamped_args,
-      gen_encrypted_feature,
-      execute_three_phase_blocking_requests_closed_system_request_breakdown,
-      itr, total_requests, payload_size, payload_size, final_output_size
-    );
+    // run_three_phase_offload_timed(
+    //   decrypt_memcpy_score_blocking_stamped,
+    //   three_func_allocator,
+    //   free_three_phase_stamped_args,
+    //   gen_encrypted_feature,
+    //   execute_three_phase_blocking_requests_closed_system_request_breakdown,
+    //   itr, total_requests, payload_size, payload_size, final_output_size
+    // );
   }
 
   if(do_yield){
-    // run_three_phase_offload_timed(
-    //   deser_decomp_hash_yielding_stamped,
-    //   three_func_allocator,
-    //   free_three_phase_stamped_args,
-    //   gen_compressed_serialized_put_request,
-    //   execute_three_phase_yielding_requests_closed_system_request_breakdown,
-    //   itr, total_requests, payload_size, payload_size, final_output_size
-    // );
+    run_three_phase_offload_timed(
+      deser_decomp_hash_yielding_stamped,
+      three_func_allocator,
+      free_three_phase_stamped_args,
+      gen_compressed_serialized_put_request,
+      execute_three_phase_yielding_requests_closed_system_request_breakdown,
+      itr, total_requests, payload_size, payload_size, final_output_size
+    );
 
     // run_three_phase_offload_throughput
     run_three_phase_offload(
