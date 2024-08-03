@@ -10,6 +10,7 @@ void run_three_phase_offload(
   offload_args_free_fn_t offload_args_free,
   input_generator_fn_t input_generator,
   executor_fn_t three_phase_executor,
+  output_validation_fn_t output_validate,
   int iter, int total_requests, int initial_payload_size, int max_axfunc_output_size,
   int max_post_proc_output_size
 ){
@@ -28,6 +29,7 @@ void run_three_phase_offload(
       input_generator,
       three_phase_executor,
       stats,
+      output_validate,
       total_requests, initial_payload_size, max_axfunc_output_size,
       max_post_proc_output_size,
       i

@@ -39,6 +39,8 @@ typedef void (*three_phase_executor_fn_t)(
   int idx
 );
 
+typedef bool (*output_validation_fn_t)(timed_offload_request_args *);
+
 /* Three Phase Harnesses */
 void three_phase_harness(
   executor_args_allocator_fn_t executor_args_allocator,
@@ -48,6 +50,7 @@ void three_phase_harness(
   input_generator_fn_t input_generator,
   executor_fn_t three_phase_executor,
   executor_stats_t *stats,
+  output_validation_fn_t  output_validate,
   int total_requests, int initial_payload_size, int max_axfunc_output_size,
   int max_post_proc_output_size,
   int idx
