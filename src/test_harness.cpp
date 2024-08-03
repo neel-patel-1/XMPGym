@@ -63,25 +63,25 @@ void three_phase_offload_timed_breakdown(
   int sampling_intervals = 1;
   int sampling_interval_timestamps = sampling_intervals + 1;
   uint64_t sampling_interval_completion_times[sampling_interval_timestamps];
-  uint64_t *ts0, *ts1, *ts2, *ts3, *ts4;
+  // uint64_t *ts0, *ts1, *ts2, *ts3, *ts4;
 
   executor_args_t *args;
   executor_args_allocator(&args, idx, total_requests);
 
-  ts0 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  ts1 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  ts2 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  ts3 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  ts4 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
+  // ts0 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
+  // ts1 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
+  // ts2 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
+  // ts3 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
+  // ts4 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
 
   requests_completed = 0;
 
   /* pre-allocate the payloads */
-  allocate_crs(total_requests, &comps);
+  // allocate_crs(total_requests, &comps);
 
   offload_args_allocator(total_requests, initial_payload_size,
-    max_axfunc_output_size, max_post_proc_output_size, input_generator, &off_args, comps,
-    ts0, ts1, ts2, ts3, ts4);
+    max_axfunc_output_size, max_post_proc_output_size, input_generator, &off_args, args->comps,
+    args->ts0, args->ts1, args->ts2, args->ts3, args->ts4);
 
   /* Pre-create the contexts */
   off_req_state = (fcontext_state_t **)malloc(sizeof(fcontext_state_t *) * total_requests);
@@ -98,13 +98,13 @@ void three_phase_offload_timed_breakdown(
 
   /* teardown */
   free_contexts(off_req_state, total_requests);
-  free(comps);
+  // free(comps);
   offload_args_free(total_requests, &off_args);
-  free(ts0);
-  free(ts1);
-  free(ts2);
-  free(ts3);
-  free(ts4);
+  // free(ts0);
+  // free(ts1);
+  // free(ts2);
+  // free(ts3);
+  // free(ts4);
 
   executor_args_free(args);
 

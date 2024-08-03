@@ -76,6 +76,13 @@ void alloc_executor_args(executor_args_t **p_args, int idx, int total_requests){
   args = (executor_args_t *)malloc(sizeof(executor_args_t));
   args->total_requests = total_requests;
 
+  args->ts0 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
+  args->ts1 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
+  args->ts2 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
+  args->ts3 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
+  args->ts4 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
+
+
   allocate_crs(total_requests, &(args->comps));
 
   *p_args = args;
@@ -84,6 +91,15 @@ void alloc_executor_args(executor_args_t **p_args, int idx, int total_requests){
 
 void free_executor_args(executor_args_t *args){
   LOG_PRINT(LOG_DEBUG, "Freeing Executor Args\n");
+
+  free(args->ts0);
+  free(args->ts1);
+  free(args->ts2);
+  free(args->ts3);
+  free(args->ts4);
+
+  free(args->comps);
+  free(args);
 }
 
 void free_deser_decomp_hash_executor_args(executor_args_t *args){
