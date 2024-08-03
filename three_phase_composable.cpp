@@ -108,6 +108,21 @@ void free_executor_args(executor_args_t *args){
   free_contexts(args->off_req_state, args->total_requests);
 }
 
+void alloc_breakdown_stats(executor_stats_t *stats, int iter){
+  stats->iter = iter;
+  stats->pre_proc_times = (uint64_t *)malloc(sizeof(uint64_t) * iter);
+  stats->offload_tax_times = (uint64_t *)malloc(sizeof(uint64_t) * iter);
+  stats->ax_func_times = (uint64_t *)malloc(sizeof(uint64_t) * iter);
+  stats->post_proc_times = (uint64_t *)malloc(sizeof(uint64_t) * iter);
+}
+
+void free_breakdown_stats(executor_stats_t *stats){
+  free(stats->pre_proc_times);
+  free(stats->offload_tax_times);
+  free(stats->ax_func_times);
+  free(stats->post_proc_times);
+}
+
 void free_deser_decomp_hash_executor_args(executor_args_t *args){
   free(args->ts0);
   free(args->ts1);
@@ -542,6 +557,8 @@ int main(int argc, char **argv){
       deser_decomp_hash_blocking_stamped,
       alloc_executor_args,
       free_executor_args,
+      alloc_breakdown_stats,
+      free_breakdown_stats,
       three_func_allocator,
       free_three_phase_stamped_args,
       gen_compressed_serialized_put_request,

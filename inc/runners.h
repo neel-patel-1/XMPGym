@@ -15,6 +15,8 @@ void run_three_phase_offload_timed(
   fcontext_fn_t request_fn,
   executor_args_allocator_fn_t executor_args_allocator,
   executor_args_free_fn_t executor_args_free,
+  executor_stats_allocator_fn_t executor_stats_allocator,
+  executor_stats_free_fn_t executor_stats_free,
   offload_args_allocator_fn_t offload_args_allocator,
   offload_args_free_fn_t offload_args_free,
   input_generator_fn_t input_generator,

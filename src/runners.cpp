@@ -15,7 +15,6 @@ void run_three_phase_offload(
   int max_post_proc_output_size
 ){
   executor_stats_t *stats;
-  executor_args_t *args;
 
   stats = (executor_stats_t *)malloc(sizeof(executor_stats_t));
   executor_stats_allocator(stats, iter);
@@ -43,6 +42,8 @@ void run_three_phase_offload_timed(
   fcontext_fn_t request_fn,
   executor_args_allocator_fn_t executor_args_allocator,
   executor_args_free_fn_t executor_args_free,
+  executor_stats_allocator_fn_t executor_stats_allocator,
+  executor_stats_free_fn_t executor_stats_free,
   offload_args_allocator_fn_t offload_args_allocator,
   offload_args_free_fn_t offload_args_free,
   input_generator_fn_t input_generator,
@@ -56,6 +57,12 @@ void run_three_phase_offload_timed(
   ax_func_time = (uint64_t *)malloc(sizeof(uint64_t) * iter);
   post_proc_time = (uint64_t *)malloc(sizeof(uint64_t) * iter);
 
+  executor_stats_t *stats;
+  executor_args_t *args;
+
+  stats = (executor_stats_t *)malloc(sizeof(executor_stats_t));
+  executor_stats_allocator(stats, iter);
+
   for(int i=0; i<iter; i++){
     three_phase_offload_timed_breakdown(
       request_fn,
@@ -67,13 +74,20 @@ void run_three_phase_offload_timed(
       three_phase_executor,
       total_requests, initial_payload_size, max_axfunc_output_size,
       max_post_proc_output_size,
-      pre_proc_time, offload_tax_time, ax_func_time, post_proc_time, i
+      stats->pre_proc_times, stats->offload_tax_times, stats->ax_func_times, stats->post_proc_times, i
     );
   }
-  print_mean_median_stdev(pre_proc_time, iter, "PreProcFunc");
-  print_mean_median_stdev(offload_tax_time, iter, "OffloadTax");
-  print_mean_median_stdev(ax_func_time, iter, "AxFunc");
-  print_mean_median_stdev(post_proc_time, iter, "PostProcFunc");
+  // print_mean_median_stdev(pre_proc_time, iter, "PreProcFunc");
+  // print_mean_median_stdev(offload_tax_time, iter, "OffloadTax");
+  // print_mean_median_stdev(ax_func_time, iter, "AxFunc");
+  // print_mean_median_stdev(post_proc_time, iter, "PostProcFunc");
+
+  print_mean_median_stdev(stats->pre_proc_times, iter, "PreProcFunc");
+  print_mean_median_stdev(stats->offload_tax_times, iter, "OffloadTax");
+  print_mean_median_stdev(stats->ax_func_times, iter, "AxFunc");
+  print_mean_median_stdev(stats->post_proc_times, iter, "PostProcFunc");
+
+  executor_stats_free(stats);
 }
 
 uint64_t run_gpcore_request_brkdown(fcontext_fn_t req_fn,
