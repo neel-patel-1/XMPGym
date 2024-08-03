@@ -70,6 +70,15 @@ void alloc_blocking_request_deser_decomp_hash_executor_args(executor_args_t **p_
   *p_args = args;
 }
 
+void alloc_executor_args(executor_args_t **p_args, int idx, int total_requests){
+  LOG_PRINT(LOG_DEBUG, "Allocating Executor Args\n");
+
+}
+
+void free_executor_args(executor_args_t *args){
+  LOG_PRINT(LOG_DEBUG, "Freeing Executor Args\n");
+}
+
 void free_deser_decomp_hash_executor_args(executor_args_t *args){
   free(args->ts0);
   free(args->ts1);
@@ -502,6 +511,8 @@ int main(int argc, char **argv){
 
     run_three_phase_offload_timed(
       deser_decomp_hash_blocking_stamped,
+      alloc_executor_args,
+      free_executor_args,
       three_func_allocator,
       free_three_phase_stamped_args,
       gen_compressed_serialized_put_request,
@@ -523,41 +534,41 @@ int main(int argc, char **argv){
     // );
   }
 
-  if(do_yield){
-    run_three_phase_offload_timed(
-      deser_decomp_hash_yielding_stamped,
-      three_func_allocator,
-      free_three_phase_stamped_args,
-      gen_compressed_serialized_put_request,
-      execute_three_phase_yielding_requests_closed_system_request_breakdown,
-      itr, total_requests, payload_size, payload_size, final_output_size
-    );
+  // if(do_yield){
+  //   run_three_phase_offload_timed(
+  //     deser_decomp_hash_yielding_stamped,
+  //     three_func_allocator,
+  //     free_three_phase_stamped_args,
+  //     gen_compressed_serialized_put_request,
+  //     execute_three_phase_yielding_requests_closed_system_request_breakdown,
+  //     itr, total_requests, payload_size, payload_size, final_output_size
+  //   );
 
-    // run_three_phase_offload(
-    //   alloc_yielding_same_request_deser_decomp_hash_executor_args,
-    //   free_deser_decomp_hash_executor_args,
-    //   alloc_throughput_stats,
-    //   free_throughput_stats,
-    //   print_throughput_stats,
-    //   three_func_allocator,
-    //   free_three_phase_stamped_args,
-    //   gen_compressed_serialized_put_request,
-    //   execute_yielding_three_phase_request_throughput,
-    //   itr, total_requests, payload_size, payload_size, final_output_size
-    // );
+  //   // run_three_phase_offload(
+  //   //   alloc_yielding_same_request_deser_decomp_hash_executor_args,
+  //   //   free_deser_decomp_hash_executor_args,
+  //   //   alloc_throughput_stats,
+  //   //   free_throughput_stats,
+  //   //   print_throughput_stats,
+  //   //   three_func_allocator,
+  //   //   free_three_phase_stamped_args,
+  //   //   gen_compressed_serialized_put_request,
+  //   //   execute_yielding_three_phase_request_throughput,
+  //   //   itr, total_requests, payload_size, payload_size, final_output_size
+  //   // );
 
-  }
+  // }
 
-  if(do_gpcore){
-    run_three_phase_offload_timed(
-      deser_decomp_hash_gpcore_stamped,
-      three_func_allocator,
-      free_three_phase_stamped_args,
-      gen_compressed_serialized_put_request,
-      execute_three_phase_blocking_requests_closed_system_request_breakdown,
-      itr, total_requests, payload_size, payload_size, final_output_size
-    );
-  }
+  // if(do_gpcore){
+  //   run_three_phase_offload_timed(
+  //     deser_decomp_hash_gpcore_stamped,
+  //     three_func_allocator,
+  //     free_three_phase_stamped_args,
+  //     gen_compressed_serialized_put_request,
+  //     execute_three_phase_blocking_requests_closed_system_request_breakdown,
+  //     itr, total_requests, payload_size, payload_size, final_output_size
+  //   );
+  // }
 
 
 

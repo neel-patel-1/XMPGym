@@ -41,6 +41,8 @@ void three_phase_harness(
 
 void three_phase_offload_timed_breakdown(
   fcontext_fn_t request_fn,
+  executor_args_allocator_fn_t executor_args_allocator,
+  executor_args_free_fn_t executor_args_free,
   offload_args_allocator_fn_t offload_args_allocator,
   offload_args_free_fn_t offload_args_free,
   input_generator_fn_t input_generator,
@@ -62,6 +64,9 @@ void three_phase_offload_timed_breakdown(
   int sampling_interval_timestamps = sampling_intervals + 1;
   uint64_t sampling_interval_completion_times[sampling_interval_timestamps];
   uint64_t *ts0, *ts1, *ts2, *ts3, *ts4;
+
+  executor_args_t *args;
+  executor_args_allocator(&args, idx, total_requests);
 
   ts0 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
   ts1 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
@@ -100,6 +105,8 @@ void three_phase_offload_timed_breakdown(
   free(ts2);
   free(ts3);
   free(ts4);
+
+  executor_args_free(args);
 
   fcontext_destroy(self);
 }
