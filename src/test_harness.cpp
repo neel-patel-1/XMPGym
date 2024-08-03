@@ -92,7 +92,7 @@ void three_phase_offload_timed_breakdown(
 
   three_phase_executor(
     total_requests, off_args,
-    off_req_state, offload_req_xfer, comps, pre_proc_time,
+    off_req_state, offload_req_xfer, args->comps, pre_proc_time,
     offload_tax_time, ax_func_time,
     post_proc_time, idx);
 

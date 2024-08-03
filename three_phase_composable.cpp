@@ -72,6 +72,13 @@ void alloc_blocking_request_deser_decomp_hash_executor_args(executor_args_t **p_
 
 void alloc_executor_args(executor_args_t **p_args, int idx, int total_requests){
   LOG_PRINT(LOG_DEBUG, "Allocating Executor Args\n");
+  executor_args_t *args;
+  args = (executor_args_t *)malloc(sizeof(executor_args_t));
+  args->total_requests = total_requests;
+
+  allocate_crs(total_requests, &(args->comps));
+
+  *p_args = args;
 
 }
 
