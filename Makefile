@@ -133,7 +133,8 @@ THREE_PHASE_COMPOSABLE_OBJS = $(fcontext_obj) \
 	obj/dsa_offloads.o \
 	obj/pointer_chase.o \
 	obj/posting_list.o \
-	obj/payload_gen.o
+	obj/payload_gen.o \
+	obj/three_phase_harness.o
 three_phase_composable.o: three_phase_composable.cpp inc/posting_list.h inc/filler_antagonist.h
 	$(CXX) $(CXXFLAGS) -c -o $@ $< $(INCLUDES) $(IPP_CRYPTO_INCLUDES) -fpermissive
 three_phase_composable: $(THREE_PHASE_COMPOSABLE_OBJS) three_phase_composable.o router.pb.o

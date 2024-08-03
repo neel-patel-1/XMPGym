@@ -11,7 +11,6 @@ extern "C" {
 
 static int gpcore_do_decompress(void *dst, void *src, uInt src_len, uLong *out_len);
 
-
 #include "inline/gpcore_compress.ipp"
 
 #endif
