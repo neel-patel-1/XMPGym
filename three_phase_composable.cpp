@@ -26,6 +26,8 @@ extern "C" {
 
 #include "three_phase_components.h"
 
+#include "request_executors.h"
+
 void deser_decomp_hash_yielding(fcontext_transfer_t arg);
 void deser_decomp_hash_blocking(fcontext_transfer_t arg);
 
@@ -50,17 +52,11 @@ void alloc_yielding_same_request_deser_decomp_hash_executor_args(executor_args_t
   *p_args = args;
 }
 
-void alloc_blocking_request_deser_decomp_hash_executor_args(executor_args_t **p_args, int idx, int total_requests){
+void alloc_blocking_request_deser_decomp_hash_executor_args_throughput(executor_args_t **p_args, int idx, int total_requests){
   executor_args_t *args;
   args = (executor_args_t *)malloc(sizeof(executor_args_t));
   args->total_requests = total_requests;
   args->idx = idx;
-
-  args->ts0 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  args->ts1 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  args->ts2 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  args->ts3 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  args->ts4 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
 
   args->off_req_state = (fcontext_state_t **)malloc(sizeof(fcontext_state_t *) * total_requests);
   args->offload_req_xfer = (fcontext_transfer_t *)malloc(sizeof(fcontext_transfer_t) * total_requests);
@@ -70,9 +66,17 @@ void alloc_blocking_request_deser_decomp_hash_executor_args(executor_args_t **p_
   *p_args = args;
 }
 
+void free_request_deser_decomp_hash_executor_args_throughput(executor_args_t *args){
+  free_contexts(args->off_req_state, args->total_requests);
+  free(args->offload_req_xfer);
+  free(args->off_req_state);
+  free(args->comps);
+  free(args);
+}
+
 void deser_decomp_hash_blocking_stamped(fcontext_transfer_t arg);
 
-void alloc_executor_args(executor_args_t **p_args, int idx, int total_requests){
+void alloc_blocking_request_deser_decomp_hash_executor_args_breakdown(executor_args_t **p_args, int idx, int total_requests){
   LOG_PRINT(LOG_DEBUG, "Allocating Executor Args\n");
   executor_args_t *args;
   args = (executor_args_t *)malloc(sizeof(executor_args_t));
@@ -94,7 +98,7 @@ void alloc_executor_args(executor_args_t **p_args, int idx, int total_requests){
 
 }
 
-void free_executor_args(executor_args_t *args){
+void free_request_deser_decomp_hash_executor_args_breakdown(executor_args_t *args){
   LOG_PRINT(LOG_DEBUG, "Freeing Executor Args\n");
 
   free(args->ts0);
@@ -504,6 +508,7 @@ int main(int argc, char **argv){
   bool do_block = false;
   bool do_gpcore = false;
   bool do_yield = false;
+  bool breakdown = false;
 
   void *p_msgbuf;
   int outsize;
@@ -532,6 +537,9 @@ int main(int argc, char **argv){
       case 'd':
         gLogLevel = LOG_DEBUG;
         break;
+      case 'l':
+        breakdown = true;
+        break;
       default:
         break;
     }
@@ -540,32 +548,43 @@ int main(int argc, char **argv){
   initialize_iaa_wq(iaa_dev_id, iaa_wq_id, wq_type);
   initialize_dsa_wq(dsa_dev_id, dsa_wq_id, wq_type);
 
-  if( ! do_gpcore && ! do_block && ! do_yield){
-    do_gpcore = true;
-    do_block = true;
-    do_yield = true;
-  }
+
+  executor_args_allocator_fn_t exe_alloc = NULL;
+  executor_args_free_fn_t exe_free = NULL;
+
+  executor_stats_allocator_fn_t stats_alloc = NULL;
+  executor_stats_free_fn_t stats_free = NULL;
+  executor_stats_processor_fn_t stats_print = NULL;
+
+  executor_fn_t three_func = NULL;
+
+  offload_args_allocator_fn_t off_args_alloc = NULL;
+  offload_args_free_fn_t off_args_free = NULL;
 
   if(do_block){
-    // run_three_phase_offload_timed(
-    //   decrypt_memcpy_score_blocking_stamped,
-    //   three_func_allocator,
-    //   free_three_phase_stamped_args,
-    //   gen_encrypted_feature,
-    //   execute_three_phase_blocking_requests_closed_system_request_breakdown,
-    //   itr, total_requests, payload_size, payload_size, final_output_size
-    // );
-
-
     run_three_phase_offload_timed(
-      alloc_executor_args,
-      free_executor_args,
+      alloc_blocking_request_deser_decomp_hash_executor_args_breakdown,
+      free_request_deser_decomp_hash_executor_args_breakdown,
       alloc_breakdown_stats,
       free_breakdown_stats,
+      print_three_phase_breakdown_stats,
       three_func_allocator,
       free_three_phase_stamped_args,
       gen_compressed_serialized_put_request,
       execute_three_phase_blocking_requests_closed_system_request_breakdown,
+      itr, total_requests, payload_size, payload_size, final_output_size
+    );
+
+    run_three_phase_offload_timed(
+      alloc_blocking_request_deser_decomp_hash_executor_args_throughput,
+      free_request_deser_decomp_hash_executor_args_throughput,
+      alloc_throughput_stats,
+      free_throughput_stats,
+      print_throughput_stats,
+      three_func_allocator,
+      free_three_phase_stamped_args,
+      gen_compressed_serialized_put_request,
+      execute_three_phase_blocking_requests_closed_system_throughput,
       itr, total_requests, payload_size, payload_size, final_output_size
     );
 

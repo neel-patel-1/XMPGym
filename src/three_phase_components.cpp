@@ -105,3 +105,10 @@ void print_throughput_stats(executor_stats_t *stats, int iter, int total_request
   );
 }
 
+void print_three_phase_breakdown_stats(executor_stats_t *stats, int iter, int total_requests){
+  print_mean_median_stdev(stats->pre_proc_times, iter, "PreProcFunc");
+  print_mean_median_stdev(stats->offload_tax_times, iter, "OffloadTax");
+  print_mean_median_stdev(stats->ax_func_times, iter, "AxFunc");
+  print_mean_median_stdev(stats->post_proc_times, iter, "PostProcFunc");
+}
+

@@ -51,19 +51,9 @@ void three_phase_offload_timed_breakdown(
   executor_stats_t *stats, int idx
 ){
   fcontext_state_t *self = fcontext_create_proxy();
-  char**dst_bufs;
-  ax_comp *comps;
   timed_offload_request_args **off_args;
-  fcontext_transfer_t *offload_req_xfer;
-  fcontext_state_t **off_req_state;
-
-  int sampling_intervals = 1;
-  int sampling_interval_timestamps = sampling_intervals + 1;
-  uint64_t sampling_interval_completion_times[sampling_interval_timestamps];
   executor_args_t *args;
   executor_args_allocator(&args, idx, total_requests);
-
-  requests_completed = 0;
 
   offload_args_allocator(total_requests, initial_payload_size,
     max_axfunc_output_size, max_post_proc_output_size, input_generator, &off_args, args->comps,

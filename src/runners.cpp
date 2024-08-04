@@ -43,6 +43,7 @@ void run_three_phase_offload_timed(
   executor_args_free_fn_t executor_args_free,
   executor_stats_allocator_fn_t executor_stats_allocator,
   executor_stats_free_fn_t executor_stats_free,
+  executor_stats_processor_fn_t executor_stats_processor,
   offload_args_allocator_fn_t offload_args_allocator,
   offload_args_free_fn_t offload_args_free,
   input_generator_fn_t input_generator,
@@ -75,15 +76,7 @@ void run_three_phase_offload_timed(
       stats, i
     );
   }
-  // print_mean_median_stdev(pre_proc_time, iter, "PreProcFunc");
-  // print_mean_median_stdev(offload_tax_time, iter, "OffloadTax");
-  // print_mean_median_stdev(ax_func_time, iter, "AxFunc");
-  // print_mean_median_stdev(post_proc_time, iter, "PostProcFunc");
-
-  print_mean_median_stdev(stats->pre_proc_times, iter, "PreProcFunc");
-  print_mean_median_stdev(stats->offload_tax_times, iter, "OffloadTax");
-  print_mean_median_stdev(stats->ax_func_times, iter, "AxFunc");
-  print_mean_median_stdev(stats->post_proc_times, iter, "PostProcFunc");
+  executor_stats_processor(stats, iter, total_requests);
 
   executor_stats_free(stats);
 }

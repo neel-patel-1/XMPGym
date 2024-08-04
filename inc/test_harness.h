@@ -26,19 +26,6 @@ typedef void (*offload_args_free_fn_t)(int, timed_offload_request_args***);
 
 typedef void (*input_generator_fn_t)(int, void **, int *);
 
-typedef void (*three_phase_executor_fn_t)(
-  int total_requests,
-  timed_offload_request_args **off_args,
-  fcontext_state_t **off_req_state,
-  fcontext_transfer_t *offload_req_xfer,
-  ax_comp *comps,
-  uint64_t *pre_proc_times,
-  uint64_t *offload_tax_times,
-  uint64_t *ax_func_times,
-  uint64_t *post_proc_times,
-  int idx
-);
-
 typedef bool (*output_validation_fn_t)(timed_offload_request_args *);
 
 /* Three Phase Harnesses */

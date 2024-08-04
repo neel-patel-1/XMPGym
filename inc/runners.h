@@ -16,6 +16,7 @@ void run_three_phase_offload_timed(
   executor_args_free_fn_t executor_args_free,
   executor_stats_allocator_fn_t executor_stats_allocator,
   executor_stats_free_fn_t executor_stats_free,
+  executor_stats_processor_fn_t executor_stats_processor,
   offload_args_allocator_fn_t offload_args_allocator,
   offload_args_free_fn_t offload_args_free,
   input_generator_fn_t input_generator,

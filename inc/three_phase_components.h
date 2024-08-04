@@ -36,6 +36,8 @@ void free_three_phase_stamped_args(
 void alloc_throughput_stats(executor_stats_t *stats, int iter);
 void free_throughput_stats(executor_stats_t *stats);
 void print_throughput_stats(executor_stats_t *stats, int iter, int total_requests);
+void print_three_phase_breakdown_stats(executor_stats_t *stats, int iter, int total_requests);
+
 
 
 /* Generic function templates passed to runner */
