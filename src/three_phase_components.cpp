@@ -85,6 +85,7 @@ void null_two_func_allocator(
 
   int max_pre_proc_output_size;
   int expected_ax_output_size = initial_payload_size;
+
   for(int i = 0; i < total_requests; i++){
     off_args[i] = (timed_offload_request_args *)malloc(sizeof(timed_offload_request_args));
 

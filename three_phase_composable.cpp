@@ -649,8 +649,14 @@ int main(int argc, char **argv){
   void *p_msgbuf;
   int outsize;
 
+  typedef enum _app_type_t {
+    DESER,
+    DECRYPT,
+    GATHER
+  } app_type_t;
+  app_type_t app_type = DESER;
 
-  while((opt = getopt(argc, argv, "t:i:s:bgydm:n:")) != -1){
+  while((opt = getopt(argc, argv, "t:i:s:bgydm:n:k:")) != -1){
     switch(opt){
       case 't':
         total_requests = atoi(optarg);
@@ -669,6 +675,9 @@ int main(int argc, char **argv){
         break;
       case 'n':
         iaa_dev_id = atoi(optarg);
+        break;
+      case 'k':
+        app_type = (app_type_t)atoi(optarg);
         break;
       default:
         break;
@@ -690,12 +699,7 @@ int main(int argc, char **argv){
   offload_args_allocator_fn_t allocator_fn = three_func_allocator;
   offload_args_free_fn_t stamped_offload_args_free_fn = free_three_phase_stamped_args;
 
-  typedef enum _app_type_t {
-    DESER,
-    DECRYPT,
-    GATHER
-  } app_type_t;
-  app_type_t app_type = DESER;
+
   switch(app_type){
     case DESER:
       input_gen = gen_compressed_serialized_put_request;
@@ -707,6 +711,7 @@ int main(int argc, char **argv){
       yielding_throughput_fn = deser_decomp_hash_yielding;
       allocator_fn = three_func_allocator;
       stamped_offload_args_free_fn = free_three_phase_stamped_args;
+      final_output_size = sizeof(uint32_t);
       break;
     case GATHER:
       input_size = payload_size;
@@ -724,6 +729,7 @@ int main(int argc, char **argv){
 
       allocator_fn = null_two_func_allocator;
       stamped_offload_args_free_fn = free_null_two_phase;
+      final_output_size = num_accesses * sizeof(float);
 
       break;
     default:
