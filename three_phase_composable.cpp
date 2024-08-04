@@ -231,6 +231,96 @@ void decomp_gather_gpcore_stamped(fcontext_transfer_t arg){
   complete_request_and_switch_to_scheduler(arg);
 }
 
+void decomp_gather_gpcore(fcontext_transfer_t arg){
+  timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
+
+  void *pre_proc_input = args->pre_proc_input;
+  void *pre_proc_output = args->pre_proc_output;
+  int pre_proc_input_size = args->pre_proc_input_size;
+
+  void *ax_func_output = args->ax_func_output;
+  int max_axfunc_output_size = args->max_axfunc_output_size;
+
+  void *post_proc_output = args->post_proc_output;
+  int post_proc_input_size = args->post_proc_input_size;
+  int max_post_proc_output_size = args->max_post_proc_output_size;
+
+  generic_gpcore_three_phase(
+    NULL, arg,
+    null_fn, pre_proc_input, pre_proc_output, pre_proc_input_size,
+    gpcore_do_deflate_decompress, ax_func_output, max_axfunc_output_size,
+    gather_access, post_proc_output, post_proc_input_size, max_post_proc_output_size
+  );
+
+  complete_request_and_switch_to_scheduler(arg);
+}
+
+void decomp_gather_blocking_stamped(fcontext_transfer_t arg){
+  timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
+
+  void *pre_proc_input = args->pre_proc_input;
+  void *pre_proc_output = args->pre_proc_output;
+  int pre_proc_input_size = args->pre_proc_input_size;
+
+  void *ax_func_output = args->ax_func_output;
+  int max_axfunc_output_size = args->max_axfunc_output_size;
+
+  void *post_proc_output = args->post_proc_output;
+  int post_proc_input_size = args->post_proc_input_size;
+  int max_post_proc_output_size = args->max_post_proc_output_size;
+
+  ax_comp *comp = args->comp;
+  struct hw_desc *desc = args->desc;
+  int id = args->id;
+
+  uint64_t *ts0 = args->ts0;
+  uint64_t *ts1 = args->ts1;
+  uint64_t *ts2 = args->ts2;
+  uint64_t *ts3 = args->ts3;
+  uint64_t *ts4 = args->ts4;
+
+  generic_blocking_three_phase_timed(
+    NULL, arg,
+    null_fn, pre_proc_input, pre_proc_output, pre_proc_input_size,
+    prepare_iaa_decompress_desc_with_preallocated_comp, blocking_iaa_submit, spin_on,
+    comp, desc, iaa,
+    ax_func_output, max_axfunc_output_size,
+    gather_access, post_proc_output, post_proc_input_size, max_post_proc_output_size,
+    ts0, ts1, ts2, ts3, ts4, id
+  );
+
+  complete_request_and_switch_to_scheduler(arg);
+}
+
+void decomp_gather_blocking(fcontext_transfer_t arg){
+  timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
+
+  void *pre_proc_input = args->pre_proc_input;
+  void *pre_proc_output = args->pre_proc_output;
+  int pre_proc_input_size = args->pre_proc_input_size;
+
+  void *ax_func_output = args->ax_func_output;
+  int max_axfunc_output_size = args->max_axfunc_output_size;
+
+  void *post_proc_output = args->post_proc_output;
+  int post_proc_input_size = args->post_proc_input_size;
+  int max_post_proc_output_size = args->max_post_proc_output_size;
+
+  ax_comp *comp = args->comp;
+  struct hw_desc *desc = args->desc;
+
+  generic_blocking_three_phase(
+    NULL, arg,
+    null_fn, pre_proc_input, pre_proc_output, pre_proc_input_size,
+    prepare_iaa_decompress_desc_with_preallocated_comp, blocking_iaa_submit, spin_on,
+    comp, desc, iaa,
+    ax_func_output, max_axfunc_output_size,
+    gather_access, post_proc_output, post_proc_input_size, max_post_proc_output_size
+  );
+
+  complete_request_and_switch_to_scheduler(arg);
+}
+
 void deser_from_buf(void *ser_inp, void *output, int input_size, int *output_size){
   router::RouterRequest req;
   req.ParseFromArray(ser_inp, input_size);
@@ -559,7 +649,12 @@ int main(int argc, char **argv){
       indirect_array_gen(&glob_indir_arr);
 
       input_gen = gen_compressed_request;
+
       gpcore_breakdown_fn = decomp_gather_gpcore_stamped;
+      gpcore_throughput_fn = decomp_gather_gpcore;
+      blocking_breakdown_fn = decomp_gather_blocking_stamped;
+      blocking_throughput_fn = decomp_gather_blocking;
+
       allocator_fn = null_two_func_allocator;
       offload_args_free_fn = free_null_two_phase;
 
@@ -603,7 +698,7 @@ int main(int argc, char **argv){
       free_breakdown_stats,
       print_three_phase_breakdown_stats,
       allocator_fn,
-      free_three_phase_stamped_args,
+      offload_args_free_fn,
       input_gen,
       execute_three_phase_blocking_requests_closed_system_request_breakdown,
       itr, total_requests, payload_size, payload_size, final_output_size
@@ -615,7 +710,7 @@ int main(int argc, char **argv){
       free_throughput_stats,
       print_throughput_stats,
       allocator_fn,
-      free_three_phase_stamped_args,
+      offload_args_free_fn,
       input_gen,
       execute_three_phase_blocking_requests_closed_system_throughput,
       itr, total_requests, payload_size, payload_size, final_output_size
@@ -628,7 +723,7 @@ int main(int argc, char **argv){
       free_breakdown_stats,
       print_three_phase_breakdown_stats,
       allocator_fn,
-      free_three_phase_stamped_args,
+      offload_args_free_fn,
       input_gen,
       execute_three_phase_blocking_requests_closed_system_request_breakdown,
       itr, total_requests, payload_size, payload_size, final_output_size
@@ -641,7 +736,7 @@ int main(int argc, char **argv){
       free_throughput_stats,
       print_throughput_stats,
       allocator_fn,
-      free_three_phase_stamped_args,
+      offload_args_free_fn,
       input_gen,
       execute_three_phase_blocking_requests_closed_system_throughput,
       itr, total_requests, payload_size, payload_size, final_output_size
@@ -654,7 +749,7 @@ int main(int argc, char **argv){
       free_breakdown_stats,
       print_three_phase_breakdown_stats,
       allocator_fn,
-      free_three_phase_stamped_args,
+      offload_args_free_fn,
       input_gen,
       execute_three_phase_yielding_requests_closed_system_request_breakdown,
       itr, total_requests, payload_size, payload_size, final_output_size
@@ -667,7 +762,7 @@ int main(int argc, char **argv){
       free_throughput_stats,
       print_throughput_stats,
       allocator_fn,
-      free_three_phase_stamped_args,
+      offload_args_free_fn,
       input_gen,
       execute_yielding_three_phase_request_throughput,
       itr, total_requests, payload_size, payload_size, final_output_size

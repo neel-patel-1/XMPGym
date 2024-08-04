@@ -96,6 +96,7 @@ void null_two_func_allocator(
       &(off_args[i]->pre_proc_output), &(off_args[i]->pre_proc_input_size));
     /* null function still needs to set pre_proc_output size to the input */
     max_pre_proc_output_size = get_compress_bound(initial_payload_size);
+    off_args[i]->pre_proc_input = (void *)malloc(initial_payload_size); // should not be required but someone tries to free it
 
     off_args[i]->ax_func_output = (void *)malloc(max_axfunc_output_size);
     /*write prefault */
