@@ -28,12 +28,51 @@ extern "C" {
 
 #include "request_executors.h"
 
+#include <functional>
+
 void deser_decomp_hash_gpcore(fcontext_transfer_t arg);
 void deser_decomp_hash_yielding(fcontext_transfer_t arg);
 void deser_decomp_hash_blocking(fcontext_transfer_t arg);
 void deser_decomp_hash_blocking_stamped(fcontext_transfer_t arg);
 void deser_decomp_hash_yielding_stamped(fcontext_transfer_t arg);
 void deser_decomp_hash_gpcore_stamped(fcontext_transfer_t arg);
+
+void alloc_homogenous_request_executor_args_throughput(executor_args_t **p_args, int idx, int total_requests, fcontext_fn_t request_function){
+  executor_args_t *args;
+  args = (executor_args_t *)malloc(sizeof(executor_args_t));
+  args->total_requests = total_requests;
+  args->idx = idx;
+
+  args->off_req_state = (fcontext_state_t **)malloc(sizeof(fcontext_state_t *) * total_requests);
+  args->offload_req_xfer = (fcontext_transfer_t *)malloc(sizeof(fcontext_transfer_t) * total_requests);
+  create_contexts(args->off_req_state, total_requests, request_function);
+  allocate_crs(total_requests, &(args->comps));
+
+  *p_args = args;
+
+}
+
+void alloc_homogenous_request_executor_args_breakdown(executor_args_t **p_args, int idx, int total_requests, fcontext_fn_t request_function){
+  LOG_PRINT(LOG_DEBUG, "Allocating Executor Args\n");
+  executor_args_t *args;
+  args = (executor_args_t *)malloc(sizeof(executor_args_t));
+  args->total_requests = total_requests;
+  args->idx = idx;
+
+  args->ts0 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
+  args->ts1 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
+  args->ts2 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
+  args->ts3 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
+  args->ts4 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
+
+  args->off_req_state = (fcontext_state_t **)malloc(sizeof(fcontext_state_t *) * total_requests);
+  args->offload_req_xfer = (fcontext_transfer_t *)malloc(sizeof(fcontext_transfer_t) * total_requests);
+  create_contexts(args->off_req_state, total_requests, request_function);
+  allocate_crs(total_requests, &(args->comps));
+
+  *p_args = args;
+
+}
 
 void alloc_gpcore_request_deser_decomp_hash_executor_args_throughput(executor_args_t **p_args, int idx, int total_requests){
   executor_args_t *args;
@@ -84,7 +123,7 @@ void free_request_deser_decomp_hash_executor_args_throughput(executor_args_t *ar
   free(args);
 }
 
-void alloc_gpcore_request_deser_decomp_hash_executor_args_breakdown(executor_args_t **p_args, int idx, int total_requests){
+void exe_alloc(executor_args_t **p_args, int idx, int total_requests){
   LOG_PRINT(LOG_DEBUG, "Allocating Executor Args\n");
   executor_args_t *args;
   args = (executor_args_t *)malloc(sizeof(executor_args_t));
@@ -602,7 +641,6 @@ int main(int argc, char **argv){
   initialize_dsa_wq(dsa_dev_id, dsa_wq_id, wq_type);
 
 
-  executor_args_allocator_fn_t exe_alloc = NULL;
   executor_args_free_fn_t exe_free = NULL;
 
   executor_stats_allocator_fn_t stats_alloc = NULL;
@@ -616,8 +654,12 @@ int main(int argc, char **argv){
 
   input_generator_fn_t input_gen = NULL;
 
+  auto exe_alloc =
+    std::bind(alloc_homogenous_request_executor_args_breakdown,
+      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, deser_decomp_hash_gpcore);
+
     run_three_phase_offload_timed(
-      alloc_gpcore_request_deser_decomp_hash_executor_args_breakdown,
+      exe_alloc,
       free_request_deser_decomp_hash_executor_args_breakdown,
       alloc_breakdown_stats,
       free_breakdown_stats,

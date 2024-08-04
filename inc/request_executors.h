@@ -9,6 +9,7 @@ extern "C" {
 }
 #include "print_utils.h"
 #include "timer_utils.h"
+#include <functional>
 
 /* Three phase executors */
 typedef struct _executor_args_t{
@@ -40,9 +41,7 @@ typedef void (*executor_fn_t)(
   executor_stats_t *stats
 );
 
-typedef void (*executor_args_allocator_fn_t)(
-  executor_args_t **p_args, int idx, int total_requests
-);
+typedef std::function<void(executor_args_t **, int, int)> executor_args_allocator_fn_t;
 
 typedef void (*executor_args_free_fn_t)(
   executor_args_t *args
