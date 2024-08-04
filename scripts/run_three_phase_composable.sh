@@ -6,8 +6,8 @@ source configs/phys_core.sh
 source configs/devid.sh
 
 query_size=$((4 * 1024 * 1024))
-iters=10
-reqs=100
+iters=5
+reqs=10
 
 make -j CXXFLAGS="-DPERF"
 mkdir -p three_phase_composable_logs
