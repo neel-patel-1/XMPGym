@@ -100,6 +100,29 @@ static inline void generic_yielding_three_phase(
   post_proc_fn post_proc_func, void *post_proc_output, int post_proc_input_size, int max_post_proc_output_size
   );
 
+template <typename pre_proc_fn,
+  typename ax_fn,
+  typename post_proc_fn,
+  typename preempt_signal_t>
+static inline void generic_gpcore_three_phase(
+  preempt_signal_t sig, fcontext_transfer_t arg,
+  pre_proc_fn pre_proc_func, void *pre_proc_input, void *pre_proc_output, int pre_proc_input_size,
+  ax_fn ax_func, void *ax_func_output, int max_axfunc_output_size,
+  post_proc_fn post_proc_func, void *post_proc_output, int post_proc_input_size, int max_post_proc_output_size
+  );
+
+template <typename pre_proc_fn,
+  typename ax_fn,
+  typename post_proc_fn,
+  typename preempt_signal_t>
+static inline void generic_gpcore_three_phase_timed(
+  preempt_signal_t sig, fcontext_transfer_t arg,
+  pre_proc_fn pre_proc_func, void *pre_proc_input, void *pre_proc_output, int pre_proc_input_size,
+  ax_fn ax_func, void *ax_func_output, int max_axfunc_output_size,
+  post_proc_fn post_proc_func, void *post_proc_output, int post_proc_input_size, int max_post_proc_output_size,
+  uint64_t *ts0, uint64_t *ts1, uint64_t *ts2, uint64_t *ts3, uint64_t *ts4, int idx
+  );
+
 #include "inline/three_phase_components.ipp"
 
 #endif

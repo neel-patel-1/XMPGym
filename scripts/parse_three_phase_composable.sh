@@ -1,10 +1,10 @@
 #!/bin/bash
 
 source configs/phys_core.sh
+source configs/query_size.sh
 
 [ -z "$CORE" ] && echo "CORE is not set" && exit 1
-
-query_size=$((4 * 1024 * 1024))
+[ -z "$query_size" ] && echo "query_size is not set" && exit 1
 
 echo -n "$query_size"
 grep -v main three_phase_composable_logs/querysize_${query_size}.log \

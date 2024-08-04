@@ -4,15 +4,18 @@
 
 source configs/phys_core.sh
 source configs/devid.sh
+source configs/query_size.sh
 
-query_size=$((4 * 1024 * 1024))
+[ -z "$CORE" ] && echo "CORE is not set" && exit 1
+[ -z "$query_size" ] && echo "query_size is not set" && exit 1
+
 iters=5
 reqs=10
 
 make -j CXXFLAGS="-DPERF"
 mkdir -p three_phase_composable_logs
 
-taskset -c 1 sudo LD_LIBRARY_PATH=/opt/intel/oneapi/ippcp/2021.11/lib \
+taskset -c $CORE sudo LD_LIBRARY_PATH=/opt/intel/oneapi/ippcp/2021.11/lib \
   ./three_phase_composable \
   -t $reqs -i $iters \
   -s ${query_size} \

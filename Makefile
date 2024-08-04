@@ -135,6 +135,7 @@ THREE_PHASE_COMPOSABLE_OBJS = $(fcontext_obj) \
 	obj/posting_list.o \
 	obj/payload_gen.o \
 	obj/three_phase_components.o \
+	obj/gather_scatter.o \
 	obj/decrypt.o
 THREE_PHASE_COMPOSABLE_DEPS = inc/three_phase_components.h \
 	inc/inline/three_phase_components.ipp \

@@ -29,13 +29,11 @@ extern "C" {
 #include "request_executors.h"
 
 #include <functional>
+#include "gather_scatter.h"
 
-void deser_decomp_hash_gpcore(fcontext_transfer_t arg);
-void deser_decomp_hash_yielding(fcontext_transfer_t arg);
-void deser_decomp_hash_blocking(fcontext_transfer_t arg);
-void deser_decomp_hash_blocking_stamped(fcontext_transfer_t arg);
-void deser_decomp_hash_yielding_stamped(fcontext_transfer_t arg);
-void deser_decomp_hash_gpcore_stamped(fcontext_transfer_t arg);
+int *glob_indir_arr = NULL;
+int num_accesses = 10;
+int input_size = 16384;
 
 void alloc_homogenous_request_executor_args_throughput(executor_args_t **p_args, int idx, int total_requests, fcontext_fn_t request_function){
   executor_args_t *args;
@@ -49,6 +47,32 @@ void alloc_homogenous_request_executor_args_throughput(executor_args_t **p_args,
   allocate_crs(total_requests, &(args->comps));
 
   *p_args = args;
+
+}
+
+void free_homogoenous_request_executor_args_throughput(executor_args_t *args){
+  free_contexts(args->off_req_state, args->total_requests);
+  free(args->offload_req_xfer);
+  free(args->off_req_state);
+  free(args->comps);
+  free(args);
+}
+
+void free_homogoenous_request_executor_args_breakdown(executor_args_t *args){
+  LOG_PRINT(LOG_DEBUG, "Freeing Executor Args\n");
+
+  free(args->ts0);
+  free(args->ts1);
+  free(args->ts2);
+  free(args->ts3);
+  free(args->ts4);
+
+  free(args->comps);
+  free_contexts(args->off_req_state, args->total_requests);
+  free(args->offload_req_xfer);
+  free(args->off_req_state);
+
+  free(args);
 
 }
 
@@ -71,139 +95,6 @@ void alloc_homogenous_request_executor_args_breakdown(executor_args_t **p_args, 
   allocate_crs(total_requests, &(args->comps));
 
   *p_args = args;
-
-}
-
-void alloc_gpcore_request_deser_decomp_hash_executor_args_throughput(executor_args_t **p_args, int idx, int total_requests){
-  executor_args_t *args;
-  args = (executor_args_t *)malloc(sizeof(executor_args_t));
-  args->total_requests = total_requests;
-  args->idx = idx;
-
-  args->off_req_state = (fcontext_state_t **)malloc(sizeof(fcontext_state_t *) * total_requests);
-  args->offload_req_xfer = (fcontext_transfer_t *)malloc(sizeof(fcontext_transfer_t) * total_requests);
-  create_contexts(args->off_req_state, total_requests, deser_decomp_hash_gpcore);
-  allocate_crs(total_requests, &(args->comps));
-
-  *p_args = args;
-}
-void alloc_blocking_request_deser_decomp_hash_executor_args_throughput(executor_args_t **p_args, int idx, int total_requests){
-  executor_args_t *args;
-  args = (executor_args_t *)malloc(sizeof(executor_args_t));
-  args->total_requests = total_requests;
-  args->idx = idx;
-
-  args->off_req_state = (fcontext_state_t **)malloc(sizeof(fcontext_state_t *) * total_requests);
-  args->offload_req_xfer = (fcontext_transfer_t *)malloc(sizeof(fcontext_transfer_t) * total_requests);
-  create_contexts(args->off_req_state, total_requests, deser_decomp_hash_blocking);
-  allocate_crs(total_requests, &(args->comps));
-
-  *p_args = args;
-}
-
-void alloc_yielding_same_request_deser_decomp_hash_executor_args_throughput(executor_args_t **p_args, int idx, int total_requests){
-  executor_args_t *args;
-  args = (executor_args_t *)malloc(sizeof(executor_args_t));
-  args->total_requests = total_requests;
-  args->idx = idx;
-
-  args->off_req_state = (fcontext_state_t **)malloc(sizeof(fcontext_state_t *) * total_requests);
-  args->offload_req_xfer = (fcontext_transfer_t *)malloc(sizeof(fcontext_transfer_t) * total_requests);
-  create_contexts(args->off_req_state, total_requests, deser_decomp_hash_yielding);
-  allocate_crs(total_requests, &(args->comps));
-
-  *p_args = args;
-}
-
-void free_request_deser_decomp_hash_executor_args_throughput(executor_args_t *args){
-  free_contexts(args->off_req_state, args->total_requests);
-  free(args->offload_req_xfer);
-  free(args->off_req_state);
-  free(args->comps);
-  free(args);
-}
-
-void exe_alloc(executor_args_t **p_args, int idx, int total_requests){
-  LOG_PRINT(LOG_DEBUG, "Allocating Executor Args\n");
-  executor_args_t *args;
-  args = (executor_args_t *)malloc(sizeof(executor_args_t));
-  args->total_requests = total_requests;
-  args->idx = idx;
-
-  args->ts0 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  args->ts1 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  args->ts2 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  args->ts3 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  args->ts4 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-
-  args->off_req_state = (fcontext_state_t **)malloc(sizeof(fcontext_state_t *) * total_requests);
-  args->offload_req_xfer = (fcontext_transfer_t *)malloc(sizeof(fcontext_transfer_t) * total_requests);
-  create_contexts(args->off_req_state, total_requests, deser_decomp_hash_gpcore_stamped);
-  allocate_crs(total_requests, &(args->comps));
-
-  *p_args = args;
-
-}
-
-void alloc_blocking_request_deser_decomp_hash_executor_args_breakdown(executor_args_t **p_args, int idx, int total_requests){
-  LOG_PRINT(LOG_DEBUG, "Allocating Executor Args\n");
-  executor_args_t *args;
-  args = (executor_args_t *)malloc(sizeof(executor_args_t));
-  args->total_requests = total_requests;
-  args->idx = idx;
-
-  args->ts0 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  args->ts1 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  args->ts2 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  args->ts3 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  args->ts4 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-
-  args->off_req_state = (fcontext_state_t **)malloc(sizeof(fcontext_state_t *) * total_requests);
-  args->offload_req_xfer = (fcontext_transfer_t *)malloc(sizeof(fcontext_transfer_t) * total_requests);
-  create_contexts(args->off_req_state, total_requests, deser_decomp_hash_blocking_stamped);
-  allocate_crs(total_requests, &(args->comps));
-
-  *p_args = args;
-
-}
-
-void alloc_yielding_same_request_deser_decomp_hash_executor_args_breakdown(executor_args_t **p_args, int idx, int total_requests){
-  LOG_PRINT(LOG_DEBUG, "Allocating Executor Args\n");
-  executor_args_t *args;
-  args = (executor_args_t *)malloc(sizeof(executor_args_t));
-  args->total_requests = total_requests;
-  args->idx = idx;
-
-  args->ts0 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  args->ts1 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  args->ts2 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  args->ts3 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-  args->ts4 = (uint64_t *)malloc(sizeof(uint64_t) * total_requests);
-
-  args->off_req_state = (fcontext_state_t **)malloc(sizeof(fcontext_state_t *) * total_requests);
-  args->offload_req_xfer = (fcontext_transfer_t *)malloc(sizeof(fcontext_transfer_t) * total_requests);
-  create_contexts(args->off_req_state, total_requests, deser_decomp_hash_yielding_stamped);
-  allocate_crs(total_requests, &(args->comps));
-
-  *p_args = args;
-
-}
-
-void free_request_deser_decomp_hash_executor_args_breakdown(executor_args_t *args){
-  LOG_PRINT(LOG_DEBUG, "Freeing Executor Args\n");
-
-  free(args->ts0);
-  free(args->ts1);
-  free(args->ts2);
-  free(args->ts3);
-  free(args->ts4);
-
-  free(args->comps);
-  free_contexts(args->off_req_state, args->total_requests);
-  free(args->offload_req_xfer);
-  free(args->off_req_state);
-
-  free(args);
 
 }
 
@@ -236,6 +127,44 @@ static inline void dot_product(void *feature, void *plain_out, int input_size, i
 }
 
 void gen_compressed_serialized_put_request(int payload_size, void **p_msgbuf, int *outsize){
+  router::RouterRequest req;
+  const char * pattern = "01234567";
+  uint8_t *msgbuf, *compbuf;
+  char *valbuf;
+  uint64_t msgsize;
+  int compsize, maxcompsize;
+  bool rc = false;
+
+  int ret = 0;
+  z_stream stream;
+  int avail_out;
+
+  valbuf = gen_compressible_buf(pattern, payload_size);
+  LOG_PRINT(LOG_VERBOSE, "ValString: %s Size: %d\n", valbuf, payload_size);
+
+  /* get compress bound*/
+  maxcompsize = get_compress_bound(payload_size);
+  compbuf = (uint8_t *)malloc(maxcompsize);
+  gpcore_do_compress(compbuf, (void *)valbuf, payload_size, &maxcompsize);
+
+  std::string compstring((char *)compbuf, maxcompsize);
+
+  req.set_key("/region/cluster/foo:key|#|etc"); // key is 32B string, value gets bigger up to 2MB
+  req.set_value(compstring);
+  req.set_operation(0);
+
+  msgsize = req.ByteSizeLong();
+  msgbuf = (uint8_t *)malloc(msgsize);
+  rc = req.SerializeToArray((void *)msgbuf, msgsize);
+  if(rc == false){
+    LOG_PRINT(LOG_ERR, "Failed to serialize\n");
+  }
+
+  *p_msgbuf = (void *)msgbuf;
+  *outsize = (int)msgsize;
+}
+
+void gen_compressed_request(int payload_size, void **p_msgbuf, int *outsize){
   router::RouterRequest req;
   const char * pattern = "01234567";
   uint8_t *msgbuf, *compbuf;
@@ -459,79 +388,6 @@ void deser_decomp_hash_blocking(fcontext_transfer_t arg){
   complete_request_and_switch_to_scheduler(arg);
 }
 
-template <typename pre_proc_fn,
-  typename ax_fn,
-  typename post_proc_fn,
-  typename preempt_signal_t>
-static inline void generic_gpcore_three_phase(
-  preempt_signal_t sig, fcontext_transfer_t arg,
-  pre_proc_fn pre_proc_func, void *pre_proc_input, void *pre_proc_output, int pre_proc_input_size,
-  ax_fn ax_func, void *ax_func_output, int max_axfunc_output_size,
-  post_proc_fn post_proc_func, void *post_proc_output, int post_proc_input_size, int max_post_proc_output_size
-  )
-{
-  int preproc_output_size, ax_input_size;
-  void *ax_func_input;
-  void *post_proc_input;
-
-
-  pre_proc_func(pre_proc_input, pre_proc_output, pre_proc_input_size, &preproc_output_size);
-  LOG_PRINT(LOG_DEBUG, "PreProcOutputSize: %d\n", preproc_output_size);
-
-  ax_input_size = preproc_output_size;
-  ax_func_input = pre_proc_output;
-
-  ax_func(ax_func_input, ax_func_output, ax_input_size, &max_axfunc_output_size);
-  LOG_PRINT(LOG_DEBUG, "AXFuncOutputSize: %d\n", post_proc_input_size);
-  LOG_PRINT(LOG_VERBOSE, "AXFuncOutput: %s \n", (char *)ax_func_output);
-
-
-  post_proc_input = ax_func_output;
-  post_proc_func(post_proc_input, post_proc_output, post_proc_input_size, &max_post_proc_output_size);
-  LOG_PRINT(LOG_DEBUG, "PostProcOutputSize: %d\n", max_post_proc_output_size);
-
-
-  return;
-}
-
-template <typename pre_proc_fn,
-  typename ax_fn,
-  typename post_proc_fn,
-  typename preempt_signal_t>
-static inline void generic_gpcore_three_phase_timed(
-  preempt_signal_t sig, fcontext_transfer_t arg,
-  pre_proc_fn pre_proc_func, void *pre_proc_input, void *pre_proc_output, int pre_proc_input_size,
-  ax_fn ax_func, void *ax_func_output, int max_axfunc_output_size,
-  post_proc_fn post_proc_func, void *post_proc_output, int post_proc_input_size, int max_post_proc_output_size,
-  uint64_t *ts0, uint64_t *ts1, uint64_t *ts2, uint64_t *ts3, uint64_t *ts4, int idx
-  )
-{
-  int preproc_output_size, ax_input_size;
-  void *ax_func_input;
-  void *post_proc_input;
-
-  ts0[idx] = sampleCoderdtsc();
-  pre_proc_func(pre_proc_input, pre_proc_output, pre_proc_input_size, &preproc_output_size);
-  LOG_PRINT(LOG_DEBUG, "PreProcOutputSize: %d\n", preproc_output_size);
-
-  ts1[idx] = sampleCoderdtsc();
-  ts2[idx] = sampleCoderdtsc();
-  ax_input_size = preproc_output_size;
-  ax_func_input = pre_proc_output;
-  ax_func(ax_func_input, ax_func_output, ax_input_size, &max_axfunc_output_size);
-  LOG_PRINT(LOG_DEBUG, "AXFuncOutputSize: %d\n", post_proc_input_size);
-  LOG_PRINT(LOG_VERBOSE, "AXFuncOutput: %s \n", (char *)ax_func_output);
-  ts3[idx] = sampleCoderdtsc();
-
-
-  post_proc_input = ax_func_output;
-  post_proc_func(post_proc_input, post_proc_output, post_proc_input_size, &max_post_proc_output_size);
-  LOG_PRINT(LOG_DEBUG, "PostProcOutputSize: %d\n", max_post_proc_output_size);
-  ts4[idx] = sampleCoderdtsc();
-
-  return;
-}
-
 void deser_decomp_hash_gpcore_stamped(fcontext_transfer_t arg){
   timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
 
@@ -641,96 +497,142 @@ int main(int argc, char **argv){
   initialize_dsa_wq(dsa_dev_id, dsa_wq_id, wq_type);
 
 
-  executor_args_free_fn_t exe_free = NULL;
 
-  executor_stats_allocator_fn_t stats_alloc = NULL;
-  executor_stats_free_fn_t stats_free = NULL;
-  executor_stats_processor_fn_t stats_print = NULL;
+  input_generator_fn_t input_gen = gen_compressed_serialized_put_request;
+  fcontext_fn_t gpcore_breakdown_fn = deser_decomp_hash_gpcore_stamped;
+  fcontext_fn_t gpcore_throughput_fn = deser_decomp_hash_gpcore;
+  fcontext_fn_t blocking_breakdown_fn = deser_decomp_hash_blocking_stamped;
+  fcontext_fn_t blocking_throughput_fn = deser_decomp_hash_blocking;
+  fcontext_fn_t yielding_breakdown_fn = deser_decomp_hash_yielding_stamped;
+  fcontext_fn_t yielding_throughput_fn = deser_decomp_hash_yielding;
+  offload_args_allocator_fn_t allocator_fn = three_func_allocator;
 
-  executor_fn_t three_func = NULL;
+  typedef enum _app_type_t {
+    DESER,
+    DECRYPT,
+    GATHER
+  } app_type_t;
+  app_type_t app_type = DESER;
+  switch(app_type){
+    case DESER:
+      input_gen = gen_compressed_serialized_put_request;
+      gpcore_breakdown_fn = deser_decomp_hash_gpcore_stamped;
+      gpcore_throughput_fn = deser_decomp_hash_gpcore;
+      blocking_breakdown_fn = deser_decomp_hash_blocking_stamped;
+      blocking_throughput_fn = deser_decomp_hash_blocking;
+      yielding_breakdown_fn = deser_decomp_hash_yielding_stamped;
+      yielding_throughput_fn = deser_decomp_hash_yielding;
+      break;
+    case GATHER:
+      input_size = payload_size;
+      LOG_PRINT(LOG_DEBUG, "Allocating Global Indir Array\n");
+      indirect_array_gen(&glob_indir_arr);
+      break;
+    default:
+      break;
+  }
 
-  offload_args_allocator_fn_t off_args_alloc = NULL;
-  offload_args_free_fn_t off_args_free = NULL;
-
-  input_generator_fn_t input_gen = NULL;
-
-  auto exe_alloc =
+  executor_args_allocator_fn_t breakdown_exe_alloc_gp_core =
     std::bind(alloc_homogenous_request_executor_args_breakdown,
-      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, deser_decomp_hash_gpcore);
+      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, gpcore_breakdown_fn);
+
+  executor_args_allocator_fn_t breakdown_exe_alloc_blocking =
+    std::bind(alloc_homogenous_request_executor_args_breakdown,
+      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, blocking_breakdown_fn);
+
+  executor_args_allocator_fn_t breakdown_exe_alloc_yielding =
+    std::bind(alloc_homogenous_request_executor_args_breakdown,
+      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, yielding_breakdown_fn);
+
+  executor_args_allocator_fn_t throughput_exe_alloc_gp_core =
+    std::bind(alloc_homogenous_request_executor_args_throughput,
+      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, gpcore_throughput_fn);
+
+  executor_args_allocator_fn_t throughput_exe_alloc_blocking =
+    std::bind(alloc_homogenous_request_executor_args_throughput,
+      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, blocking_throughput_fn);
+
+  executor_args_allocator_fn_t throughput_exe_alloc_yielding =
+    std::bind(alloc_homogenous_request_executor_args_throughput,
+      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, yielding_throughput_fn);
+
+  executor_args_free_fn_t breakdown_exe_free = free_homogoenous_request_executor_args_breakdown;
+
+  executor_args_free_fn_t throughput_exe_free = free_homogoenous_request_executor_args_throughput;
 
     run_three_phase_offload_timed(
-      exe_alloc,
-      free_request_deser_decomp_hash_executor_args_breakdown,
+      breakdown_exe_alloc_gp_core,
+      breakdown_exe_free,
       alloc_breakdown_stats,
       free_breakdown_stats,
       print_three_phase_breakdown_stats,
-      three_func_allocator,
+      allocator_fn,
       free_three_phase_stamped_args,
-      gen_compressed_serialized_put_request,
+      input_gen,
       execute_three_phase_blocking_requests_closed_system_request_breakdown,
       itr, total_requests, payload_size, payload_size, final_output_size
     );
     run_three_phase_offload_timed(
-      alloc_gpcore_request_deser_decomp_hash_executor_args_throughput,
-      free_request_deser_decomp_hash_executor_args_throughput,
+      throughput_exe_alloc_gp_core,
+      throughput_exe_free,
       alloc_throughput_stats,
       free_throughput_stats,
       print_throughput_stats,
-      three_func_allocator,
+      allocator_fn,
       free_three_phase_stamped_args,
-      gen_compressed_serialized_put_request,
+      input_gen,
       execute_three_phase_blocking_requests_closed_system_throughput,
       itr, total_requests, payload_size, payload_size, final_output_size
     );
 
     run_three_phase_offload_timed(
-      alloc_blocking_request_deser_decomp_hash_executor_args_breakdown,
-      free_request_deser_decomp_hash_executor_args_breakdown,
+      breakdown_exe_alloc_blocking,
+      breakdown_exe_free,
       alloc_breakdown_stats,
       free_breakdown_stats,
       print_three_phase_breakdown_stats,
-      three_func_allocator,
+      allocator_fn,
       free_three_phase_stamped_args,
-      gen_compressed_serialized_put_request,
+      input_gen,
       execute_three_phase_blocking_requests_closed_system_request_breakdown,
       itr, total_requests, payload_size, payload_size, final_output_size
     );
 
     run_three_phase_offload_timed(
-      alloc_blocking_request_deser_decomp_hash_executor_args_throughput,
-      free_request_deser_decomp_hash_executor_args_throughput,
+      throughput_exe_alloc_blocking,
+      throughput_exe_free,
       alloc_throughput_stats,
       free_throughput_stats,
       print_throughput_stats,
-      three_func_allocator,
+      allocator_fn,
       free_three_phase_stamped_args,
-      gen_compressed_serialized_put_request,
+      input_gen,
       execute_three_phase_blocking_requests_closed_system_throughput,
       itr, total_requests, payload_size, payload_size, final_output_size
     );
 
     run_three_phase_offload_timed(
-      alloc_yielding_same_request_deser_decomp_hash_executor_args_breakdown,
-      free_request_deser_decomp_hash_executor_args_breakdown,
+      breakdown_exe_alloc_yielding,
+      breakdown_exe_free,
       alloc_breakdown_stats,
       free_breakdown_stats,
       print_three_phase_breakdown_stats,
-      three_func_allocator,
+      allocator_fn,
       free_three_phase_stamped_args,
-      gen_compressed_serialized_put_request,
+      input_gen,
       execute_three_phase_yielding_requests_closed_system_request_breakdown,
       itr, total_requests, payload_size, payload_size, final_output_size
     );
 
     run_three_phase_offload_timed(
-      alloc_yielding_same_request_deser_decomp_hash_executor_args_throughput,
-      free_request_deser_decomp_hash_executor_args_throughput,
+      throughput_exe_alloc_yielding,
+      throughput_exe_free,
       alloc_throughput_stats,
       free_throughput_stats,
       print_throughput_stats,
-      three_func_allocator,
+      allocator_fn,
       free_three_phase_stamped_args,
-      gen_compressed_serialized_put_request,
+      input_gen,
       execute_yielding_three_phase_request_throughput,
       itr, total_requests, payload_size, payload_size, final_output_size
     );
