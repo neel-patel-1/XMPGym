@@ -121,8 +121,8 @@ void execute_three_phase_yielding_requests_closed_system_request_breakdown(
   int next_request_offload_to_complete_idx = 0;
   int total_requests = args->total_requests;
   timed_offload_request_args **off_args = args->off_args;
-  fcontext_transfer_t *offload_req_xfer = args->offload_req_xfer;
   fcontext_state_t **off_req_state = args->off_req_state;
+  fcontext_transfer_t *offload_req_xfer = args->offload_req_xfer;
   ax_comp *comps = args->comps;
   uint64_t *pre_proc_times = stats->pre_proc_times;
   uint64_t *offload_tax_times = stats->offload_tax_times;

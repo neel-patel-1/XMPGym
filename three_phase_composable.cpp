@@ -92,7 +92,7 @@ void alloc_blocking_request_deser_decomp_hash_executor_args_breakdown(executor_a
 
 }
 
-void alloc_yielding_request_deser_decomp_hash_executor_args_breakdown(executor_args_t **p_args, int idx, int total_requests){
+void alloc_yielding_same_request_deser_decomp_hash_executor_args_breakdown(executor_args_t **p_args, int idx, int total_requests){
   LOG_PRINT(LOG_DEBUG, "Allocating Executor Args\n");
   executor_args_t *args;
   args = (executor_args_t *)malloc(sizeof(executor_args_t));
@@ -577,6 +577,9 @@ int main(int argc, char **argv){
   offload_args_allocator_fn_t off_args_alloc = NULL;
   offload_args_free_fn_t off_args_free = NULL;
 
+  input_generator_fn_t input_gen = NULL;
+
+
     run_three_phase_offload_timed(
       alloc_blocking_request_deser_decomp_hash_executor_args_breakdown,
       free_request_deser_decomp_hash_executor_args_breakdown,
@@ -604,7 +607,7 @@ int main(int argc, char **argv){
     );
 
     run_three_phase_offload_timed(
-      alloc_yielding_same_request_deser_decomp_hash_executor_args_throughput,
+      alloc_yielding_same_request_deser_decomp_hash_executor_args_breakdown,
       free_request_deser_decomp_hash_executor_args_breakdown,
       alloc_breakdown_stats,
       free_breakdown_stats,
@@ -616,44 +619,18 @@ int main(int argc, char **argv){
       itr, total_requests, payload_size, payload_size, final_output_size
     );
 
-
-  // if(do_yield){
-  //   run_three_phase_offload_timed(
-  //     deser_decomp_hash_yielding_stamped,
-  //     three_func_allocator,
-  //     free_three_phase_stamped_args,
-  //     gen_compressed_serialized_put_request,
-  //     execute_three_phase_yielding_requests_closed_system_request_breakdown,
-  //     itr, total_requests, payload_size, payload_size, final_output_size
-  //   );
-
-  //   // run_three_phase_offload(
-  //   //   alloc_yielding_same_request_deser_decomp_hash_executor_args,
-  //   //   free_deser_decomp_hash_executor_args,
-  //   //   alloc_throughput_stats,
-  //   //   free_throughput_stats,
-  //   //   print_throughput_stats,
-  //   //   three_func_allocator,
-  //   //   free_three_phase_stamped_args,
-  //   //   gen_compressed_serialized_put_request,
-  //   //   execute_yielding_three_phase_request_throughput,
-  //   //   itr, total_requests, payload_size, payload_size, final_output_size
-  //   // );
-
-  // }
-
-  // if(do_gpcore){
-  //   run_three_phase_offload_timed(
-  //     deser_decomp_hash_gpcore_stamped,
-  //     three_func_allocator,
-  //     free_three_phase_stamped_args,
-  //     gen_compressed_serialized_put_request,
-  //     execute_three_phase_blocking_requests_closed_system_request_breakdown,
-  //     itr, total_requests, payload_size, payload_size, final_output_size
-  //   );
-  // }
-
-
+    run_three_phase_offload_timed(
+      alloc_yielding_same_request_deser_decomp_hash_executor_args_throughput,
+      free_request_deser_decomp_hash_executor_args_throughput,
+      alloc_throughput_stats,
+      free_throughput_stats,
+      print_throughput_stats,
+      three_func_allocator,
+      free_three_phase_stamped_args,
+      gen_compressed_serialized_put_request,
+      execute_yielding_three_phase_request_throughput,
+      itr, total_requests, payload_size, payload_size, final_output_size
+    );
 
   free_iaa_wq();
   free_dsa_wq();
