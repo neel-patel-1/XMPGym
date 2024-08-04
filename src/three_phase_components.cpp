@@ -143,6 +143,7 @@ void free_null_two_phase(
   timed_offload_request_args ***off_args
 ){
   for(int i = 0; i < total_requests; i++){
+    free((*off_args)[i]->pre_proc_input);
     free((*off_args)[i]->pre_proc_output);
     free((*off_args)[i]->ax_func_output);
     free((*off_args)[i]->post_proc_output);
