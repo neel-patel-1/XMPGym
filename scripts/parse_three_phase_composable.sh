@@ -4,13 +4,14 @@ source configs/phys_core.sh
 
 [ -z "$CORE" ] && echo "CORE is not set" && exit 1
 
-query_size=$((42 * 1024))
+query_size=$((4 * 1024 * 1024))
 
+echo -n "$query_size"
 grep -v main three_phase_composable_logs/querysize_${query_size}.log \
   | grep -v info \
   | grep -v RPS \
   | awk "\
-    /PreProcFunc Mean/{printf(\"%s \", \$5 );} \
+    /PreProcFunc Mean/{printf(\" %s \", \$5 );} \
     /OffloadTax Mean/{printf(\"%s \", \$5);  } \
     /AxFunc Mean/{printf(\"%s \", \$5);} \
     /PostProcFunc Mean/{printf(\"%s\n\", \$5);} \

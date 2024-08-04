@@ -5,14 +5,16 @@
 source configs/phys_core.sh
 source configs/devid.sh
 
-query_size=$((42 * 1024))
+query_size=$((4 * 1024 * 1024))
+iters=10
+reqs=100
 
 make -j CXXFLAGS="-DPERF"
 mkdir -p three_phase_composable_logs
 
 taskset -c 1 sudo LD_LIBRARY_PATH=/opt/intel/oneapi/ippcp/2021.11/lib \
   ./three_phase_composable \
-  -t 1000 -i 10 \
+  -t $reqs -i $iters \
   -s ${query_size} \
   -m $DSA_DEV_ID -n $IAA_DEV_ID \
   > three_phase_composable_logs/querysize_${query_size}.log
