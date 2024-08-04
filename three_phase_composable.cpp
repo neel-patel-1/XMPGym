@@ -568,16 +568,12 @@ int main(int argc, char **argv){
   int total_requests = 1000;
   int payload_size = 1024;
   int final_output_size = sizeof(uint32_t);
-  bool do_block = false;
-  bool do_gpcore = false;
-  bool do_yield = false;
-  bool breakdown = false;
 
   void *p_msgbuf;
   int outsize;
 
 
-  while((opt = getopt(argc, argv, "t:i:s:bgyd")) != -1){
+  while((opt = getopt(argc, argv, "t:i:s:bgydm:n:")) != -1){
     switch(opt){
       case 't':
         total_requests = atoi(optarg);
@@ -588,20 +584,14 @@ int main(int argc, char **argv){
       case 's':
         payload_size = atoi(optarg);
         break;
-      case 'y':
-        do_yield = true;
-        break;
-      case 'b':
-        do_block = true;
-        break;
-      case 'g':
-        do_gpcore = true;
-        break;
       case 'd':
         gLogLevel = LOG_DEBUG;
         break;
-      case 'l':
-        breakdown = true;
+      case 'm':
+        dsa_dev_id = atoi(optarg);
+        break;
+      case 'n':
+        iaa_dev_id = atoi(optarg);
         break;
       default:
         break;
