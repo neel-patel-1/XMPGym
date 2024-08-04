@@ -165,17 +165,11 @@ void gen_compressed_serialized_put_request(int payload_size, void **p_msgbuf, in
 }
 
 void gen_compressed_request(int payload_size, void **p_msgbuf, int *outsize){
-  router::RouterRequest req;
   const char * pattern = "01234567";
-  uint8_t *msgbuf, *compbuf;
+  uint8_t *compbuf;
   char *valbuf;
   uint64_t msgsize;
-  int compsize, maxcompsize;
-  bool rc = false;
-
-  int ret = 0;
-  z_stream stream;
-  int avail_out;
+  int maxcompsize;
 
   valbuf = gen_compressible_buf(pattern, payload_size);
   LOG_PRINT(LOG_VERBOSE, "ValString: %s Size: %d\n", valbuf, payload_size);
@@ -185,21 +179,56 @@ void gen_compressed_request(int payload_size, void **p_msgbuf, int *outsize){
   compbuf = (uint8_t *)malloc(maxcompsize);
   gpcore_do_compress(compbuf, (void *)valbuf, payload_size, &maxcompsize);
 
-  std::string compstring((char *)compbuf, maxcompsize);
+  *p_msgbuf = (void *)compbuf;
+  *outsize = (int)maxcompsize;
+}
 
-  req.set_key("/region/cluster/foo:key|#|etc"); // key is 32B string, value gets bigger up to 2MB
-  req.set_value(compstring);
-  req.set_operation(0);
+static inline void null_fn(void *inp, void *output, int input_size, int *output_size){
+  *output_size = input_size;
+}
 
-  msgsize = req.ByteSizeLong();
-  msgbuf = (uint8_t *)malloc(msgsize);
-  rc = req.SerializeToArray((void *)msgbuf, msgsize);
-  if(rc == false){
-    LOG_PRINT(LOG_ERR, "Failed to serialize\n");
+static inline void gather_access(void *inp, void *output, int input_size, int *output_size){
+  /* gather from input */
+  float *outp = (float *)output;
+  float *input = (float *)inp;
+  for(int i=0; i < num_accesses; i++){
+    outp[i] = input[glob_indir_arr[i]];
+    LOG_PRINT(LOG_DEBUG, "outp[%d] = inp[%d] = %f = %f\n", i,
+      glob_indir_arr[i], outp[i] , input[glob_indir_arr[i]]);
   }
+  *output_size = input_size;
+}
 
-  *p_msgbuf = (void *)msgbuf;
-  *outsize = (int)msgsize;
+void decomp_gather_gpcore_stamped(fcontext_transfer_t arg){
+  timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
+
+  void *pre_proc_input = args->pre_proc_input;
+  void *pre_proc_output = args->pre_proc_output;
+  int pre_proc_input_size = args->pre_proc_input_size;
+
+  void *ax_func_output = args->ax_func_output;
+  int max_axfunc_output_size = args->max_axfunc_output_size;
+
+  void *post_proc_output = args->post_proc_output;
+  int post_proc_input_size = args->post_proc_input_size;
+  int max_post_proc_output_size = args->max_post_proc_output_size;
+
+  uint64_t *ts0 = args->ts0;
+  uint64_t *ts1 = args->ts1;
+  uint64_t *ts2 = args->ts2;
+  uint64_t *ts3 = args->ts3;
+  uint64_t *ts4 = args->ts4;
+  int id = args->id;
+
+  generic_gpcore_three_phase_timed(
+    NULL, arg,
+    null_fn, pre_proc_input, pre_proc_output, pre_proc_input_size,
+    gpcore_do_deflate_decompress, ax_func_output, max_axfunc_output_size,
+    gather_access, post_proc_output, post_proc_input_size, max_post_proc_output_size,
+    ts0, ts1, ts2, ts3, ts4, id
+  );
+
+  complete_request_and_switch_to_scheduler(arg);
 }
 
 void deser_from_buf(void *ser_inp, void *output, int input_size, int *output_size){
@@ -445,9 +474,7 @@ void deser_decomp_hash_gpcore(fcontext_transfer_t arg){
 }
 
 
-
-
-int gLogLevel = LOG_PERF;
+int gLogLevel = LOG_DEBUG;
 bool gDebugParam = false;
 int main(int argc, char **argv){
 
@@ -506,13 +533,14 @@ int main(int argc, char **argv){
   fcontext_fn_t yielding_breakdown_fn = deser_decomp_hash_yielding_stamped;
   fcontext_fn_t yielding_throughput_fn = deser_decomp_hash_yielding;
   offload_args_allocator_fn_t allocator_fn = three_func_allocator;
+  offload_args_free_fn_t offload_args_free_fn = free_three_phase_stamped_args;
 
   typedef enum _app_type_t {
     DESER,
     DECRYPT,
     GATHER
   } app_type_t;
-  app_type_t app_type = DESER;
+  app_type_t app_type = GATHER;
   switch(app_type){
     case DESER:
       input_gen = gen_compressed_serialized_put_request;
@@ -522,11 +550,19 @@ int main(int argc, char **argv){
       blocking_throughput_fn = deser_decomp_hash_blocking;
       yielding_breakdown_fn = deser_decomp_hash_yielding_stamped;
       yielding_throughput_fn = deser_decomp_hash_yielding;
+      allocator_fn = three_func_allocator;
+      offload_args_free_fn = free_three_phase_stamped_args;
       break;
     case GATHER:
       input_size = payload_size;
       LOG_PRINT(LOG_DEBUG, "Allocating Global Indir Array\n");
       indirect_array_gen(&glob_indir_arr);
+
+      input_gen = gen_compressed_request;
+      gpcore_breakdown_fn = decomp_gather_gpcore_stamped;
+      allocator_fn = null_two_func_allocator;
+      offload_args_free_fn = free_null_two_phase;
+
       break;
     default:
       break;

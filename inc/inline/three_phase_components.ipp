@@ -209,7 +209,7 @@ static inline void generic_gpcore_three_phase(
   ax_func_input = pre_proc_output;
 
   ax_func(ax_func_input, ax_func_output, ax_input_size, &max_axfunc_output_size);
-  LOG_PRINT(LOG_DEBUG, "AXFuncOutputSize: %d\n", post_proc_input_size);
+  LOG_PRINT(LOG_DEBUG, "AXFuncOutputSize: %d\n", max_axfunc_output_size);
   LOG_PRINT(LOG_VERBOSE, "AXFuncOutput: %s \n", (char *)ax_func_output);
 
 
@@ -246,7 +246,7 @@ static inline void generic_gpcore_three_phase_timed(
   ax_input_size = preproc_output_size;
   ax_func_input = pre_proc_output;
   ax_func(ax_func_input, ax_func_output, ax_input_size, &max_axfunc_output_size);
-  LOG_PRINT(LOG_DEBUG, "AXFuncOutputSize: %d\n", post_proc_input_size);
+  LOG_PRINT(LOG_DEBUG, "AXFuncOutputSize: %d\n", max_axfunc_output_size);
   LOG_PRINT(LOG_VERBOSE, "AXFuncOutput: %s \n", (char *)ax_func_output);
   ts3[idx] = sampleCoderdtsc();
 

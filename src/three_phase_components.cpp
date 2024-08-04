@@ -68,6 +68,60 @@ void three_func_allocator(
   *offload_args = off_args;
 }
 
+void null_two_func_allocator(
+  int total_requests,
+  int initial_payload_size,
+  int max_axfunc_output_size,
+  int max_post_proc_output_size,
+  void input_generator(int payload_size, void **p_msgbuf, int *outsize),
+  timed_offload_request_args ***offload_args,
+  ax_comp *comps, uint64_t *ts0,
+  uint64_t *ts1, uint64_t *ts2,
+  uint64_t *ts3, uint64_t *ts4
+)
+{
+  timed_offload_request_args **off_args =
+    (timed_offload_request_args **)malloc(total_requests * sizeof(timed_offload_request_args *));
+
+  int max_pre_proc_output_size;
+  int expected_ax_output_size = initial_payload_size;
+  for(int i = 0; i < total_requests; i++){
+    off_args[i] = (timed_offload_request_args *)malloc(sizeof(timed_offload_request_args));
+
+    /* ax func input needs to be the input that would
+    ordinarily be processed by pre_proc_func. ax func consumes pre_proc_output
+    so put the input directly in there -- using this allocator means
+    the first func is null_func */
+    input_generator(initial_payload_size,
+      &(off_args[i]->pre_proc_output), &(off_args[i]->pre_proc_input_size));
+    /* null function still needs to set pre_proc_output size to the input */
+    max_pre_proc_output_size = get_compress_bound(initial_payload_size);
+
+    off_args[i]->ax_func_output = (void *)malloc(max_axfunc_output_size);
+    /*write prefault */
+    for(int j = 0; j < max_axfunc_output_size; j+=4096){
+      ((char *)off_args[i]->ax_func_output)[j] = 0;
+    }
+    off_args[i]->max_axfunc_output_size = max_axfunc_output_size;
+
+    off_args[i]->post_proc_output = (void *)malloc(max_post_proc_output_size);
+    off_args[i]->max_post_proc_output_size = max_post_proc_output_size;
+    off_args[i]->post_proc_input_size = expected_ax_output_size;
+
+    off_args[i]->comp = &comps[i];
+
+    off_args[i]->ts0 = ts0;
+    off_args[i]->ts1 = ts1;
+    off_args[i]->ts2 = ts2;
+    off_args[i]->ts3 = ts3;
+    off_args[i]->ts4 = ts4;
+    off_args[i]->id = i;
+    off_args[i]->desc = (struct hw_desc *)malloc(sizeof(struct hw_desc));
+
+  }
+  *offload_args = off_args;
+}
+
 void free_three_phase_stamped_args(
   int total_requests,
   timed_offload_request_args ***off_args
@@ -83,6 +137,19 @@ void free_three_phase_stamped_args(
   free(*off_args);
 }
 
+void free_null_two_phase(
+  int total_requests,
+  timed_offload_request_args ***off_args
+){
+  for(int i = 0; i < total_requests; i++){
+    free((*off_args)[i]->pre_proc_output);
+    free((*off_args)[i]->ax_func_output);
+    free((*off_args)[i]->post_proc_output);
+    free((*off_args)[i]->desc);
+    free((*off_args)[i]);
+  }
+  free(*off_args);
+}
 
 void alloc_throughput_stats(executor_stats_t *stats, int iter){
   stats->exe_time_start = (uint64_t *)malloc(sizeof(uint64_t) * iter);

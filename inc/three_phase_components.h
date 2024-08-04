@@ -24,8 +24,23 @@ void three_func_allocator(
   uint64_t *ts1, uint64_t *ts2,
   uint64_t *ts3, uint64_t *ts4
 );
+void null_two_func_allocator(
+  int total_requests,
+  int initial_payload_size,
+  int max_axfunc_output_size,
+  int max_post_proc_output_size,
+  void input_generator(int payload_size, void **p_msgbuf, int *outsize),
+  timed_offload_request_args ***offload_args,
+  ax_comp *comps, uint64_t *ts0,
+  uint64_t *ts1, uint64_t *ts2,
+  uint64_t *ts3, uint64_t *ts4
+);
 
 void free_three_phase_stamped_args(
+  int total_requests,
+  timed_offload_request_args ***off_args
+);
+void free_null_two_phase(
   int total_requests,
   timed_offload_request_args ***off_args
 );
