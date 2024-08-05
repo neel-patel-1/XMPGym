@@ -649,6 +649,77 @@ static inline void axcore_axcore_two_phase_timed(
   return;
 }
 
+void write_prefault(void *buf, int size){
+  for(int i = 0; i < size; i+=4096){
+    ((char *)buf)[i] = 0;
+  }
+}
+
+void axcore_axcore_allocator(
+  int total_requests,
+  int initial_payload_size,
+  int max_axfunc_output_size,
+  int max_post_proc_output_size,
+  void input_generator(int payload_size, void **p_msgbuf, int *outsize),
+  timed_offload_request_args ***offload_args,
+  ax_comp *comps, uint64_t *ts0,
+  uint64_t *ts1, uint64_t *ts2,
+  uint64_t *ts3, uint64_t *ts4
+)
+{
+  timed_offload_request_args **off_args =
+    (timed_offload_request_args **)malloc(total_requests * sizeof(timed_offload_request_args *));
+
+  int max_ax_func_1_output_size;
+  int expected_ax_func_1_output_size = initial_payload_size;
+
+  for(int i = 0; i < total_requests; i++){
+    off_args[i] = (timed_offload_request_args *)malloc(sizeof(timed_offload_request_args));
+
+    input_generator(initial_payload_size,
+      &(off_args[i]->pre_proc_input), &(off_args[i]->pre_proc_input_size)); /* ax func 1 inp */
+    /* write prefault */
+    write_prefault(off_args[i]->pre_proc_input, initial_payload_size);
+
+    /* ax func 1 outp */
+    max_ax_func_1_output_size = get_compress_bound(initial_payload_size); /* in case compress */
+    off_args[i]->pre_proc_output = (void *)malloc(max_ax_func_1_output_size);
+    /* write prefault */
+    write_prefault(off_args[i]->pre_proc_output, max_ax_func_1_output_size);
+
+    /* ax func 2 outp */
+    off_args[i]->ax_func_output = (void *)malloc(max_axfunc_output_size);
+    /*write prefault */
+    write_prefault(off_args[i]->ax_func_output, max_axfunc_output_size);
+
+    off_args[i]->comp = &comps[i];
+
+    off_args[i]->ts0 = ts0;
+    off_args[i]->ts1 = ts1;
+    off_args[i]->ts2 = ts2;
+    off_args[i]->ts3 = ts3;
+    off_args[i]->ts4 = ts4;
+    off_args[i]->id = i;
+    off_args[i]->desc = (struct hw_desc *)malloc(sizeof(struct hw_desc));
+
+  }
+  *offload_args = off_args;
+}
+
+void free_axcore_axcore(
+  int total_requests,
+  timed_offload_request_args ***off_args
+){
+  for(int i = 0; i < total_requests; i++){
+    free((*off_args)[i]->pre_proc_input);
+    free((*off_args)[i]->pre_proc_output);
+    free((*off_args)[i]->ax_func_output);
+    free((*off_args)[i]->desc);
+    free((*off_args)[i]);
+  }
+  free(*off_args);
+}
+
 void memcpy_decomp_axcore_axcore_stamped(fcontext_transfer_t arg){
   timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
 
@@ -656,12 +727,8 @@ void memcpy_decomp_axcore_axcore_stamped(fcontext_transfer_t arg){
   void *ax_func_1_output = args->pre_proc_output;
   int ax_func_1_input_size = args->pre_proc_input_size;
 
-  void *ax_func_output = args->ax_func_output;
-  int max_axfunc_output_size = args->max_axfunc_output_size;
-
-  void *post_proc_output = args->post_proc_output;
-  int post_proc_input_size = args->post_proc_input_size;
-  int max_post_proc_output_size = args->max_post_proc_output_size;
+  void *ax_func_2_output = args->ax_func_output;
+  int max_axfunc_2_output_size = args->max_axfunc_output_size;
 
   ax_comp *comp = args->comp;
   struct hw_desc *desc = args->desc;
@@ -679,7 +746,7 @@ void memcpy_decomp_axcore_axcore_stamped(fcontext_transfer_t arg){
     ax_func_1_input, ax_func_1_output, ax_func_1_input_size,
     prepare_iaa_decompress_desc_with_preallocated_comp, blocking_iaa_submit, spin_on,
     comp, desc, iaa,
-    ax_func_output, max_axfunc_output_size,
+    ax_func_2_output, max_axfunc_2_output_size,
     ts0, ts1, ts2, ts3, ts4, id
   );
 
