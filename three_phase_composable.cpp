@@ -611,37 +611,34 @@ static inline void axcore_axcore_two_phase_timed(
   void *ax_func_1_input, void *ax_func_1_output, int ax_func_1_input_size,
   prep_desc_fn prep_func_2, submit_desc_fn submit_func_2, post_offload_fn post_offload_func_2,
   comp_record_t *comp, desc_t *desc, ax_handle_t *ax,
-  void *ax_func_2_output, int max_axfunc_2_output_size,
+  void *ax_func_2_output, int max_axfunc_2_output_size, int ax_func_2_input_size,
   uint64_t *ts0, uint64_t *ts1, uint64_t *ts2, uint64_t *ts3, uint64_t *ts4, int idx
   )
 {
-  int ax_func_1_output_size, ax_input_size;
   void *ax_func_2_input;
-  int ax_func_2_input_size;
 
   ts0[idx] = sampleCoderdtsc(); // ax_func 1
-  prep_func_1(desc, (uint64_t)ax_func_1_input, (uint64_t)ax_func_1_output, (uint64_t)comp, ax_input_size);
+  prep_func_1(desc, (uint64_t)ax_func_1_input, (uint64_t)ax_func_1_output, (uint64_t)comp, ax_func_1_input_size);
   submit_func_1(ax, desc);
   ts1[idx] = sampleCoderdtsc();
   post_offload_func_1(comp);
   if(comp->status != COMP_STATUS_COMPLETED){
     LOG_PRINT(LOG_ERR, "Error: %d\n", comp->status);
   }
-  LOG_PRINT(LOG_DEBUG, "AXFuncOutputSize: %d\n", ax_func_2_input_size);
+  LOG_PRINT(LOG_DEBUG, "ExpectedAXFunc1OutputSize: %d\n", ax_func_2_input_size);
   LOG_PRINT(LOG_VERBOSE, "AXFuncOutput: %s \n", (char *)ax_func_1_output);
   ts2[idx] = sampleCoderdtsc();
 
-  ax_func_2_input_size = ax_func_1_output_size;
   ax_func_2_input = ax_func_1_output;
 
-  prep_func_2(desc, (uint64_t)ax_func_1_input, (uint64_t)ax_func_1_output, (uint64_t)comp, ax_input_size);
+  prep_func_2(desc, (uint64_t)ax_func_2_input, (uint64_t)ax_func_2_output, (uint64_t)comp, ax_func_2_input_size);
   submit_func_2(ax, desc);
   ts3[idx] = sampleCoderdtsc();
   post_offload_func_2(comp);
   if(comp->status != COMP_STATUS_COMPLETED){
     LOG_PRINT(LOG_ERR, "Error: %d\n", comp->status);
   }
-  LOG_PRINT(LOG_DEBUG, "AXFuncOutputSize: %d\n", ax_func_2_input_size);
+  LOG_PRINT(LOG_DEBUG, "AXFunc2OutputSize: %d\n", ax_func_2_input_size);
   LOG_PRINT(LOG_VERBOSE, "AXFuncOutput: %s \n", (char *)ax_func_2_output);
   ts4[idx] = sampleCoderdtsc();
 
@@ -688,6 +685,7 @@ void axcore_axcore_allocator(
     write_prefault(off_args[i]->pre_proc_output, max_ax_func_1_output_size);
 
     /* ax func 2 outp */
+    off_args[i]->ax_func_input_size = initial_payload_size; /* only user is decompress and is therefore equal */
     off_args[i]->ax_func_output = (void *)malloc(max_axfunc_output_size);
     /*write prefault */
     write_prefault(off_args[i]->ax_func_output, max_axfunc_output_size);
@@ -729,6 +727,7 @@ void memcpy_decomp_axcore_axcore_stamped(fcontext_transfer_t arg){
 
   void *ax_func_2_output = args->ax_func_output;
   int max_axfunc_2_output_size = args->max_axfunc_output_size;
+  int ax_func_2_input_size = args->ax_func_input_size;
 
   ax_comp *comp = args->comp;
   struct hw_desc *desc = args->desc;
@@ -741,12 +740,14 @@ void memcpy_decomp_axcore_axcore_stamped(fcontext_transfer_t arg){
   uint64_t *ts3 = args->ts3;
   uint64_t *ts4 = args->ts4;
 
+  LOG_PRINT(LOG_VERBOSE, "ax_func_1_input_size: %d ax_func_2_input_size: %d\n", ax_func_1_input_size, ax_func_2_input_size);
+
   axcore_axcore_two_phase_timed(
     prepare_dsa_memcpy_desc_with_preallocated_comp, blocking_dsa_submit, spin_on,
     ax_func_1_input, ax_func_1_output, ax_func_1_input_size,
     prepare_iaa_decompress_desc_with_preallocated_comp, blocking_iaa_submit, spin_on,
     comp, desc, iaa,
-    ax_func_2_output, max_axfunc_2_output_size,
+    ax_func_2_output, max_axfunc_2_output_size, ax_func_2_input_size,
     ts0, ts1, ts2, ts3, ts4, id
   );
 
@@ -795,17 +796,25 @@ int main(int argc, char **argv){
   int payload_size = 1024;
   int final_output_size = sizeof(uint32_t);
 
+  bool do_blocking = true;
+  bool do_gpcore = true;
+  bool do_yielding = true;
+
+  bool do_brkdown = true;
+  bool do_thrpt = true;
+
   void *p_msgbuf;
   int outsize;
 
   typedef enum _app_type_t {
     DESER,
     DECRYPT,
-    GATHER
+    GATHER,
+    AX_AX,
   } app_type_t;
-  app_type_t app_type = DESER;
+  app_type_t app_type = AX_AX;
 
-  while((opt = getopt(argc, argv, "t:i:s:bgydm:n:k:")) != -1){
+  while((opt = getopt(argc, argv, "t:i:s:bgydm:n:k:v")) != -1){
     switch(opt){
       case 't':
         total_requests = atoi(optarg);
@@ -827,6 +836,9 @@ int main(int argc, char **argv){
         break;
       case 'k':
         app_type = (app_type_t)atoi(optarg);
+        break;
+      case 'v':
+        gLogLevel = LOG_VERBOSE;
         break;
       default:
         break;
@@ -881,6 +893,16 @@ int main(int argc, char **argv){
       final_output_size = num_accesses * sizeof(float);
 
       break;
+    case AX_AX:
+      input_gen = gen_compressed_request;
+      blocking_breakdown_fn = memcpy_decomp_axcore_axcore_stamped;
+      allocator_fn = axcore_axcore_allocator;
+      stamped_offload_args_free_fn = free_axcore_axcore;
+      final_output_size = sizeof(uint32_t);
+      do_yielding = false;
+      do_gpcore = false;
+      do_thrpt = false;
+      break;
     default:
       break;
   }
@@ -913,6 +935,7 @@ int main(int argc, char **argv){
 
   executor_args_free_fn_t throughput_exe_free = free_homogoenous_request_executor_args_throughput;
 
+  if(do_gpcore){
     run_three_phase_offload_timed(
       breakdown_exe_alloc_gp_core,
       breakdown_exe_free,
@@ -937,58 +960,67 @@ int main(int argc, char **argv){
       execute_three_phase_blocking_requests_closed_system_throughput,
       itr, total_requests, payload_size, payload_size, final_output_size
     );
+  }
 
-    run_three_phase_offload_timed(
-      breakdown_exe_alloc_blocking,
-      breakdown_exe_free,
-      alloc_breakdown_stats,
-      free_breakdown_stats,
-      print_three_phase_breakdown_stats,
-      allocator_fn,
-      stamped_offload_args_free_fn,
-      input_gen,
-      execute_three_phase_blocking_requests_closed_system_request_breakdown,
-      itr, total_requests, payload_size, payload_size, final_output_size
-    );
+  if(do_blocking){
+    if(do_brkdown)
+      run_three_phase_offload_timed(
+        breakdown_exe_alloc_blocking,
+        breakdown_exe_free,
+        alloc_breakdown_stats,
+        free_breakdown_stats,
+        print_three_phase_breakdown_stats,
+        allocator_fn,
+        stamped_offload_args_free_fn,
+        input_gen,
+        execute_three_phase_blocking_requests_closed_system_request_breakdown,
+        itr, total_requests, payload_size, payload_size, final_output_size
+      );
 
-    run_three_phase_offload_timed(
-      throughput_exe_alloc_blocking,
-      throughput_exe_free,
-      alloc_throughput_stats,
-      free_throughput_stats,
-      print_throughput_stats,
-      allocator_fn,
-      stamped_offload_args_free_fn,
-      input_gen,
-      execute_three_phase_blocking_requests_closed_system_throughput,
-      itr, total_requests, payload_size, payload_size, final_output_size
-    );
+    if(do_thrpt)
+      run_three_phase_offload_timed(
+        throughput_exe_alloc_blocking,
+        throughput_exe_free,
+        alloc_throughput_stats,
+        free_throughput_stats,
+        print_throughput_stats,
+        allocator_fn,
+        stamped_offload_args_free_fn,
+        input_gen,
+        execute_three_phase_blocking_requests_closed_system_throughput,
+        itr, total_requests, payload_size, payload_size, final_output_size
+      );
+  }
 
-    run_three_phase_offload_timed(
-      breakdown_exe_alloc_yielding,
-      breakdown_exe_free,
-      alloc_breakdown_stats,
-      free_breakdown_stats,
-      print_three_phase_breakdown_stats,
-      allocator_fn,
-      stamped_offload_args_free_fn,
-      input_gen,
-      execute_three_phase_yielding_requests_closed_system_request_breakdown,
-      itr, total_requests, payload_size, payload_size, final_output_size
-    );
+  if(do_yielding){
+    if(do_brkdown)
+      run_three_phase_offload_timed(
+        breakdown_exe_alloc_yielding,
+        breakdown_exe_free,
+        alloc_breakdown_stats,
+        free_breakdown_stats,
+        print_three_phase_breakdown_stats,
+        allocator_fn,
+        stamped_offload_args_free_fn,
+        input_gen,
+        execute_three_phase_yielding_requests_closed_system_request_breakdown,
+        itr, total_requests, payload_size, payload_size, final_output_size
+      );
 
-    run_three_phase_offload_timed(
-      throughput_exe_alloc_yielding,
-      throughput_exe_free,
-      alloc_throughput_stats,
-      free_throughput_stats,
-      print_throughput_stats,
-      allocator_fn,
-      stamped_offload_args_free_fn,
-      input_gen,
-      execute_yielding_three_phase_request_throughput,
-      itr, total_requests, payload_size, payload_size, final_output_size
-    );
+    if(do_thrpt)
+      run_three_phase_offload_timed(
+        throughput_exe_alloc_yielding,
+        throughput_exe_free,
+        alloc_throughput_stats,
+        free_throughput_stats,
+        print_throughput_stats,
+        allocator_fn,
+        stamped_offload_args_free_fn,
+        input_gen,
+        execute_yielding_three_phase_request_throughput,
+        itr, total_requests, payload_size, payload_size, final_output_size
+      );
+  }
 
   free_iaa_wq();
   free_dsa_wq();

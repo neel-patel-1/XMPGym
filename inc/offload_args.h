@@ -41,6 +41,7 @@ typedef struct _timed_offload_request_args{
   void *pre_proc_output;
   int pre_proc_input_size;
   void *ax_func_output;
+  int ax_func_input_size;
   int max_axfunc_output_size;
   void *post_proc_output;
   int post_proc_input_size;
