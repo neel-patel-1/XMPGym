@@ -183,6 +183,18 @@ void gen_compressed_request(int payload_size, void **p_msgbuf, int *outsize){
   *outsize = (int)maxcompsize;
 }
 
+void gen_plaintext_request(int payload_size, void **p_msgbuf, int *outsize){
+  const char * pattern = "01234567";
+  char *valbuf;
+  uint64_t msgsize;
+
+  valbuf = gen_compressible_buf(pattern, payload_size);
+  LOG_PRINT(LOG_VERBOSE, "ValString: %s Size: %d\n", valbuf, payload_size);
+
+  *p_msgbuf = (void *)valbuf;
+  *outsize = payload_size;
+}
+
 static inline void null_fn(void *inp, void *output, int input_size, int *output_size){
   *output_size = input_size;
 }
@@ -676,7 +688,7 @@ void axcore_axcore_allocator(
     input_generator(initial_payload_size,
       &(off_args[i]->pre_proc_input), &(off_args[i]->pre_proc_input_size)); /* ax func 1 inp */
     /* write prefault */
-    write_prefault(off_args[i]->pre_proc_input, initial_payload_size);
+    // write_prefault(off_args[i]->pre_proc_input, initial_payload_size);
 
     /* ax func 1 outp */
     max_ax_func_1_output_size = get_compress_bound(initial_payload_size); /* in case compress */
@@ -750,6 +762,15 @@ void memcpy_decomp_axcore_axcore_stamped(fcontext_transfer_t arg){
     ax_func_2_output, max_axfunc_2_output_size, ax_func_2_input_size,
     ts0, ts1, ts2, ts3, ts4, id
   );
+
+  // axcore_axcore_two_phase_timed(
+  //   prepare_iaa_decompress_desc_with_preallocated_comp, blocking_iaa_submit, spin_on,
+  //   ax_func_1_input, ax_func_1_output, ax_func_1_input_size,
+  //   prepare_iaa_decompress_desc_with_preallocated_comp, blocking_iaa_submit, spin_on,
+  //   comp, desc, iaa,
+  //   ax_func_2_output, max_axfunc_2_output_size, ax_func_2_input_size,
+  //   ts0, ts1, ts2, ts3, ts4, id
+  // );
 
   complete_request_and_switch_to_scheduler(arg);
 }
@@ -894,11 +915,11 @@ int main(int argc, char **argv){
 
       break;
     case AX_AX:
-      input_gen = gen_compressed_request;
+      input_gen = gen_plaintext_request;
       blocking_breakdown_fn = memcpy_decomp_axcore_axcore_stamped;
       allocator_fn = axcore_axcore_allocator;
       stamped_offload_args_free_fn = free_axcore_axcore;
-      final_output_size = sizeof(uint32_t);
+      final_output_size = payload_size;
       do_yielding = false;
       do_gpcore = false;
       do_thrpt = false;
