@@ -630,6 +630,7 @@ static inline void axcore_axcore_two_phase_timed(
   )
 {
   void *ax_func_2_input;
+  LOG_PRINT(LOG_DEBUG, "AXFunc1InputSize: %d\n", ax_func_1_input_size);
 
   ts0[idx] = sampleCoderdtsc(); // ax_func 1
   prep_func_1(desc, (uint64_t)ax_func_1_input, (uint64_t)ax_func_1_output, (uint64_t)comp, ax_func_1_input_size);
@@ -639,7 +640,6 @@ static inline void axcore_axcore_two_phase_timed(
   if(comp->status != COMP_STATUS_COMPLETED){
     LOG_PRINT(LOG_ERR, "Error: %d\n", comp->status);
   }
-  LOG_PRINT(LOG_DEBUG, "ExpectedAXFunc1OutputSize: %d\n", ax_func_2_input_size);
   LOG_PRINT(LOG_VERBOSE, "AXFuncOutput: %s \n", (char *)ax_func_1_output);
   ts2[idx] = sampleCoderdtsc();
 
@@ -652,7 +652,7 @@ static inline void axcore_axcore_two_phase_timed(
   if(comp->status != COMP_STATUS_COMPLETED){
     LOG_PRINT(LOG_ERR, "Error: %d\n", comp->status);
   }
-  LOG_PRINT(LOG_DEBUG, "AXFunc2OutputSize: %d\n", ax_func_2_input_size);
+  LOG_PRINT(LOG_DEBUG, "MaxAXFunc2OutputSize: %d\n", max_axfunc_2_output_size);
   LOG_PRINT(LOG_VERBOSE, "AXFuncOutput: %s \n", (char *)ax_func_2_output);
   ts4[idx] = sampleCoderdtsc();
 
@@ -802,6 +802,92 @@ void memcpy_decomp_axcore_axcore_stamped(fcontext_transfer_t arg){
     ax_func_2_output, max_axfunc_2_output_size, ax_func_2_input_size,
     iaa,
     comp, desc,
+    ts0, ts1, ts2, ts3, ts4, id
+  );
+
+  complete_request_and_switch_to_scheduler(arg);
+}
+
+
+template <typename prep_desc_fn, typename aecs_prep_desc_fn, typename submit_desc_fn, typename post_offload_fn,
+  typename desc_t, typename comp_record_t, typename aecs_ptr_t, typename ax_handle_t >
+static inline void axcore_standard_iaa_aecs_axcore_two_phase(
+  prep_desc_fn prep_func_1, submit_desc_fn submit_func_1, post_offload_fn post_offload_func_1,
+  void *ax_func_1_input, void *ax_func_1_output, int ax_func_1_input_size,
+  ax_handle_t *ax_1,
+  aecs_prep_desc_fn prep_func_2, submit_desc_fn submit_func_2, post_offload_fn post_offload_func_2,
+  void *ax_func_2_output, int max_axfunc_2_output_size, int ax_func_2_input_size,
+  ax_handle_t *iaa,
+  comp_record_t *comp, desc_t *desc, aecs_ptr_t *aecs_buf,
+  uint64_t *ts0, uint64_t *ts1, uint64_t *ts2, uint64_t *ts3, uint64_t *ts4, int idx
+  )
+{
+  void *ax_func_2_input;
+  LOG_PRINT(LOG_DEBUG, "AXFunc1InputSize: %d\n", ax_func_1_input_size);
+
+  ts0[idx] = sampleCoderdtsc(); // ax_func 1
+  prep_func_1(desc, (uint64_t)ax_func_1_input, (uint64_t)ax_func_1_output, (uint64_t)comp, ax_func_1_input_size);
+  submit_func_1(ax_1, desc);
+  ts1[idx] = sampleCoderdtsc();
+  post_offload_func_1(comp);
+  if(comp->status != COMP_STATUS_COMPLETED){
+    LOG_PRINT(LOG_ERR, "Error: %d\n", comp->status);
+  }
+  LOG_PRINT(LOG_VERBOSE, "AXFuncOutput: %s \n", (char *)ax_func_1_output);
+  ts2[idx] = sampleCoderdtsc();
+
+  ax_func_2_input = ax_func_1_output;
+
+  prep_func_2(desc, (uint64_t)ax_func_2_input, (uint64_t) aecs_buf, (uint64_t)ax_func_2_output, (uint64_t)comp, ax_func_2_input_size);
+  submit_func_2(iaa, desc);
+  ts3[idx] = sampleCoderdtsc();
+  post_offload_func_2(comp);
+  if(comp->status != COMP_STATUS_COMPLETED){
+    LOG_PRINT(LOG_ERR, "Error: %d\n", comp->status);
+  }
+  LOG_PRINT(LOG_DEBUG, "MaxAXFunc2OutputSize: %d\n", max_axfunc_2_output_size);
+  LOG_PRINT(LOG_VERBOSE, "AXFuncOutput: %s \n", (char *)ax_func_2_output);
+  ts4[idx] = sampleCoderdtsc();
+
+
+  return;
+}
+
+
+
+void memcpy_comp_axcore_axcore_stamped(fcontext_transfer_t arg){
+  timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
+
+  void *ax_func_1_input = args->pre_proc_input;
+  void *ax_func_1_output = args->pre_proc_output;
+  int ax_func_1_input_size = args->pre_proc_input_size;
+
+  void *ax_func_2_output = args->ax_func_output;
+  int max_axfunc_2_output_size = args->max_axfunc_output_size;
+  int ax_func_2_input_size = args->ax_func_input_size;
+
+  ax_comp *comp = args->comp;
+  struct hw_desc *desc = args->desc;
+  void *aecs = args->aecs;
+
+  int id = args->id;
+
+  uint64_t *ts0 = args->ts0;
+  uint64_t *ts1 = args->ts1;
+  uint64_t *ts2 = args->ts2;
+  uint64_t *ts3 = args->ts3;
+  uint64_t *ts4 = args->ts4;
+
+  LOG_PRINT(LOG_VERBOSE, "ax_func_1_input_size: %d ax_func_2_input_size: %d\n", ax_func_1_input_size, ax_func_2_input_size);
+
+  axcore_standard_iaa_aecs_axcore_two_phase(
+    prepare_dsa_memcpy_desc_with_preallocated_comp, blocking_dsa_submit, spin_on,
+    ax_func_1_input, ax_func_1_output, ax_func_1_input_size,
+    dsa,
+    prepare_iaa_compress_desc_with_preallocated_comp, blocking_iaa_submit, spin_on,
+    ax_func_2_output, max_axfunc_2_output_size, ax_func_2_input_size,
+    iaa,
+    comp, desc, aecs,
     ts0, ts1, ts2, ts3, ts4, id
   );
 
@@ -1026,9 +1112,9 @@ int main(int argc, char **argv){
 
       break;
     case AX_AX:
-      input_gen = gen_compressed_request;
+      input_gen = gen_plaintext_request;
 
-      blocking_breakdown_fn = memcpy_decomp_axcore_axcore_stamped;
+      blocking_breakdown_fn = memcpy_comp_axcore_axcore_stamped;
 
       allocator_fn = axcore_axcore_allocator;
       stamped_offload_args_free_fn = free_axcore_axcore;

@@ -28,6 +28,7 @@ typedef struct _offload_request_args{
 typedef struct _timed_offload_request_args{
   ax_comp *comp;
   struct hw_desc *desc;
+  void *aecs;
   int id;
 
   char *src_payload;
