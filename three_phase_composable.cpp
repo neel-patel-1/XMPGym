@@ -808,6 +808,43 @@ void memcpy_decomp_axcore_axcore_stamped(fcontext_transfer_t arg){
   complete_request_and_switch_to_scheduler(arg);
 }
 
+static inline void gpcore_do_memcpy(void *inp, void *output, int input_size, int *output_size){
+  memcpy(output, inp, input_size);
+  *output_size = input_size;
+}
+
+void memcpy_decomp_gpcore_gpcore_stamped(fcontext_transfer_t arg){
+  timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
+
+  void *pre_proc_input = args->pre_proc_input;
+  void *pre_proc_output = args->pre_proc_output;
+  int pre_proc_input_size = args->pre_proc_input_size;
+
+  void *ax_func_output = args->ax_func_output;
+  int max_axfunc_output_size = args->max_axfunc_output_size;
+
+  void *post_proc_output = args->post_proc_output;
+  int post_proc_input_size = args->post_proc_input_size;
+  int max_post_proc_output_size = args->max_post_proc_output_size;
+
+  uint64_t *ts0 = args->ts0;
+  uint64_t *ts1 = args->ts1;
+  uint64_t *ts2 = args->ts2;
+  uint64_t *ts3 = args->ts3;
+  uint64_t *ts4 = args->ts4;
+  int id = args->id;
+
+  generic_gpcore_three_phase_timed(
+    NULL, arg,
+    null_fn, pre_proc_input, pre_proc_output, pre_proc_input_size,
+    gpcore_do_memcpy, ax_func_output, max_axfunc_output_size,
+    gpcore_do_deflate_decompress, post_proc_output, post_proc_input_size, max_post_proc_output_size,
+    ts0, ts1, ts2, ts3, ts4, id
+  );
+
+  complete_request_and_switch_to_scheduler(arg);
+}
+
 void deser_decomp_hash_gpcore(fcontext_transfer_t arg){
   timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
 
@@ -866,6 +903,7 @@ int main(int argc, char **argv){
     GATHER,
     AX_AX,
     AX_GP,
+    GP_GP,
   } app_type_t;
   app_type_t app_type = AX_AX;
 
@@ -978,7 +1016,7 @@ int main(int argc, char **argv){
     case GP_GP:
       input_gen = gen_compressed_request;
 
-      blocking_breakdown_fn = memcpy_decomp_axcore_gpcore_stamped;
+      blocking_breakdown_fn = memcpy_decomp_gpcore_gpcore_stamped;
 
       allocator_fn = null_two_func_allocator;
       stamped_offload_args_free_fn = free_null_two_phase;
@@ -986,6 +1024,7 @@ int main(int argc, char **argv){
 
       do_yielding = false;
       do_thrpt = false;
+      do_gpcore = false;
       break;
     default:
       break;
