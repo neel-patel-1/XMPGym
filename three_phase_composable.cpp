@@ -732,6 +732,36 @@ void free_axcore_axcore(
   free(*off_args);
 }
 
+void memcpy_decomp_gpcore_axcore_stamped(fcontext_transfer_t arg)
+{
+  timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
+
+  void *pre_proc_input = args->pre_proc_input;
+  void *pre_proc_output = args->pre_proc_output;
+  int pre_proc_input_size = args->pre_proc_input_size;
+
+  void *ax_func_output = args->ax_func_output;
+  int max_axfunc_output_size = args->max_axfunc_output_size;
+
+  void *post_proc_output = args->post_proc_output;
+  int post_proc_input_size = args->post_proc_input_size;
+  int max_post_proc_output_size = args->max_post_proc_output_size;
+
+  ax_comp *comp = args->comp;
+  struct hw_desc *desc = args->desc;
+
+  generic_blocking_three_phase(
+    NULL, arg,
+    null_fn, pre_proc_input, pre_proc_output, pre_proc_input_size,
+    prepare_dsa_memcpy_desc_with_preallocated_comp, blocking_dsa_submit, spin_on,
+    comp, desc, dsa,
+    ax_func_output, max_axfunc_output_size,
+    gpcore_do_decompress, post_proc_output, post_proc_input_size, max_post_proc_output_size,
+    ts0, ts1, ts2, ts3, ts4, id  );
+
+  complete_request_and_switch_to_scheduler(arg);
+}
+
 void memcpy_decomp_axcore_axcore_stamped(fcontext_transfer_t arg){
   timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
 
@@ -766,15 +796,6 @@ void memcpy_decomp_axcore_axcore_stamped(fcontext_transfer_t arg){
     comp, desc,
     ts0, ts1, ts2, ts3, ts4, id
   );
-
-  // axcore_axcore_two_phase_timed(
-  //   prepare_iaa_decompress_desc_with_preallocated_comp, blocking_iaa_submit, spin_on,
-  //   ax_func_1_input, ax_func_1_output, ax_func_1_input_size,
-  //   prepare_iaa_decompress_desc_with_preallocated_comp, blocking_iaa_submit, spin_on,
-  //   comp, desc, iaa,
-  //   ax_func_2_output, max_axfunc_2_output_size, ax_func_2_input_size,
-  //   ts0, ts1, ts2, ts3, ts4, id
-  // );
 
   complete_request_and_switch_to_scheduler(arg);
 }
