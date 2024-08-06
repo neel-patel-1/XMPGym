@@ -621,9 +621,11 @@ template <typename prep_desc_fn, typename submit_desc_fn, typename post_offload_
 static inline void axcore_axcore_two_phase_timed(
   prep_desc_fn prep_func_1, submit_desc_fn submit_func_1, post_offload_fn post_offload_func_1,
   void *ax_func_1_input, void *ax_func_1_output, int ax_func_1_input_size,
+  ax_handle_t *ax_1,
   prep_desc_fn prep_func_2, submit_desc_fn submit_func_2, post_offload_fn post_offload_func_2,
-  comp_record_t *comp, desc_t *desc, ax_handle_t *ax,
   void *ax_func_2_output, int max_axfunc_2_output_size, int ax_func_2_input_size,
+  ax_handle_t *ax_2,
+  comp_record_t *comp, desc_t *desc,
   uint64_t *ts0, uint64_t *ts1, uint64_t *ts2, uint64_t *ts3, uint64_t *ts4, int idx
   )
 {
@@ -631,7 +633,7 @@ static inline void axcore_axcore_two_phase_timed(
 
   ts0[idx] = sampleCoderdtsc(); // ax_func 1
   prep_func_1(desc, (uint64_t)ax_func_1_input, (uint64_t)ax_func_1_output, (uint64_t)comp, ax_func_1_input_size);
-  submit_func_1(ax, desc);
+  submit_func_1(ax_1, desc);
   ts1[idx] = sampleCoderdtsc();
   post_offload_func_1(comp);
   if(comp->status != COMP_STATUS_COMPLETED){
@@ -644,7 +646,7 @@ static inline void axcore_axcore_two_phase_timed(
   ax_func_2_input = ax_func_1_output;
 
   prep_func_2(desc, (uint64_t)ax_func_2_input, (uint64_t)ax_func_2_output, (uint64_t)comp, ax_func_2_input_size);
-  submit_func_2(ax, desc);
+  submit_func_2(ax_2, desc);
   ts3[idx] = sampleCoderdtsc();
   post_offload_func_2(comp);
   if(comp->status != COMP_STATUS_COMPLETED){
@@ -757,9 +759,11 @@ void memcpy_decomp_axcore_axcore_stamped(fcontext_transfer_t arg){
   axcore_axcore_two_phase_timed(
     prepare_dsa_memcpy_desc_with_preallocated_comp, blocking_dsa_submit, spin_on,
     ax_func_1_input, ax_func_1_output, ax_func_1_input_size,
+    dsa,
     prepare_iaa_decompress_desc_with_preallocated_comp, blocking_iaa_submit, spin_on,
-    comp, desc, iaa,
     ax_func_2_output, max_axfunc_2_output_size, ax_func_2_input_size,
+    iaa,
+    comp, desc,
     ts0, ts1, ts2, ts3, ts4, id
   );
 
@@ -916,10 +920,13 @@ int main(int argc, char **argv){
       break;
     case AX_AX:
       input_gen = gen_plaintext_request;
+
       blocking_breakdown_fn = memcpy_decomp_axcore_axcore_stamped;
+
       allocator_fn = axcore_axcore_allocator;
       stamped_offload_args_free_fn = free_axcore_axcore;
       final_output_size = payload_size;
+
       do_yielding = false;
       do_gpcore = false;
       do_thrpt = false;
