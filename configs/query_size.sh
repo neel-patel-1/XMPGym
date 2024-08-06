@@ -1,1 +1,1 @@
-export query_size=$(( 2 * 1024 * 1024 ))
+export query_size=$(( 42 * 1024 ))

@@ -732,7 +732,7 @@ void free_axcore_axcore(
   free(*off_args);
 }
 
-void memcpy_decomp_gpcore_axcore_stamped(fcontext_transfer_t arg)
+void memcpy_decomp_axcore_gpcore_stamped(fcontext_transfer_t arg)
 {
   timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
 
@@ -750,13 +750,21 @@ void memcpy_decomp_gpcore_axcore_stamped(fcontext_transfer_t arg)
   ax_comp *comp = args->comp;
   struct hw_desc *desc = args->desc;
 
-  generic_blocking_three_phase(
+  int id = args->id;
+
+  uint64_t *ts0 = args->ts0;
+  uint64_t *ts1 = args->ts1;
+  uint64_t *ts2 = args->ts2;
+  uint64_t *ts3 = args->ts3;
+  uint64_t *ts4 = args->ts4;
+
+  generic_blocking_three_phase_timed(
     NULL, arg,
     null_fn, pre_proc_input, pre_proc_output, pre_proc_input_size,
     prepare_dsa_memcpy_desc_with_preallocated_comp, blocking_dsa_submit, spin_on,
     comp, desc, dsa,
     ax_func_output, max_axfunc_output_size,
-    gpcore_do_decompress, post_proc_output, post_proc_input_size, max_post_proc_output_size,
+    gpcore_do_deflate_decompress, post_proc_output, post_proc_input_size, max_post_proc_output_size,
     ts0, ts1, ts2, ts3, ts4, id  );
 
   complete_request_and_switch_to_scheduler(arg);
@@ -857,6 +865,7 @@ int main(int argc, char **argv){
     DECRYPT,
     GATHER,
     AX_AX,
+    AX_GP,
   } app_type_t;
   app_type_t app_type = AX_AX;
 
@@ -950,6 +959,32 @@ int main(int argc, char **argv){
 
       do_yielding = false;
       do_gpcore = false;
+      do_thrpt = false;
+      break;
+
+    case AX_GP:
+      input_gen = gen_compressed_request;
+
+      blocking_breakdown_fn = memcpy_decomp_axcore_gpcore_stamped;
+
+      allocator_fn = null_two_func_allocator;
+      stamped_offload_args_free_fn = free_null_two_phase;
+      final_output_size = payload_size;
+
+      do_yielding = false;
+      do_gpcore = false;
+      do_thrpt = false;
+      break;
+    case GP_GP:
+      input_gen = gen_compressed_request;
+
+      blocking_breakdown_fn = memcpy_decomp_axcore_gpcore_stamped;
+
+      allocator_fn = null_two_func_allocator;
+      stamped_offload_args_free_fn = free_null_two_phase;
+      final_output_size = payload_size;
+
+      do_yielding = false;
       do_thrpt = false;
       break;
     default:
