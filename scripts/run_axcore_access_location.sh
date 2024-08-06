@@ -15,19 +15,29 @@ reqs=10
 make -j CXXFLAGS="-DPERF"
 mkdir -p three_phase_composable_logs
 
-taskset -c $CORE sudo LD_LIBRARY_PATH=/opt/intel/oneapi/ippcp/2021.11/lib \
-  ./three_phase_composable \
-  -t $reqs -i $iters \
-  -s ${query_size} \
-  -m $DSA_DEV_ID -n $IAA_DEV_ID \
-  -k 3 \
-  > three_phase_composable_logs/axcore_inp_querysize_${query_size}.log
+for i in "${QUERY_SIZE_LG[@]}"
+do
+  query_size=$(( 2 ** $i ))
+  iters=5
+  reqs=10
 
+  make -j CXXFLAGS="-DPERF"
+  mkdir -p three_phase_composable_logs
 
-taskset -c $CORE sudo LD_LIBRARY_PATH=/opt/intel/oneapi/ippcp/2021.11/lib \
-  ./three_phase_composable \
-  -t $reqs -i $iters \
-  -s ${query_size} \
-  -m $DSA_DEV_ID -n $IAA_DEV_ID \
-  -k 6 \
-  > three_phase_composable_logs/gpcore_inp_querysize_${query_size}.log
+  taskset -c $CORE sudo LD_LIBRARY_PATH=/opt/intel/oneapi/ippcp/2021.11/lib \
+    ./three_phase_composable \
+    -t $reqs -i $iters \
+    -s ${query_size} \
+    -m $DSA_DEV_ID -n $IAA_DEV_ID \
+    -k 3 \
+    > three_phase_composable_logs/axcore_inp_querysize_${query_size}.log
+
+  taskset -c $CORE sudo LD_LIBRARY_PATH=/opt/intel/oneapi/ippcp/2021.11/lib \
+    ./three_phase_composable \
+    -t $reqs -i $iters \
+    -s ${query_size} \
+    -m $DSA_DEV_ID -n $IAA_DEV_ID \
+    -k 6 \
+    > three_phase_composable_logs/gpcore_inp_querysize_${query_size}.log
+
+done

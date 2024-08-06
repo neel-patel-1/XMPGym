@@ -6,27 +6,36 @@ source configs/query_size.sh
 [ -z "$CORE" ] && echo "CORE is not set" && exit 1
 [ -z "$query_size" ] && echo "query_size is not set" && exit 1
 
-echo -n "$query_size"
-grep -v main three_phase_composable_logs/axcore_inp_querysize_${query_size}.log \
-  | grep -v info \
-  | grep -v RPS \
-  | awk "\
-    /PreProcFunc Mean/{printf(\" %s \", \$5 );} \
-    /OffloadTax Mean/{printf(\"%s \", \$5);  } \
-    /AxFunc Mean/{printf(\"%s \", \$5);} \
-    /PostProcFunc Mean/{printf(\"%s\n\", \$5);} \
-    "
+[ -z "$QUERY_SIZE_LG" ] && echo "QUERY_SIZE_LG is not set" && exit 1
 
-grep -v main three_phase_composable_logs/gpcore_inp_querysize_${query_size}.log \
-  | grep -v info \
-  | grep -v RPS \
-  | awk "\
-    /PreProcFunc Mean/{printf(\" %s \", \$5 );} \
-    /OffloadTax Mean/{printf(\"%s \", \$5);  } \
-    /AxFunc Mean/{printf(\"%s \", \$5);} \
-    /PostProcFunc Mean/{printf(\"%s\n\", \$5);} \
-    "
 
+for i in "${QUERY_SIZE_LG[@]}"
+do
+  query_size=$(( 2 ** $i ))
+  iters=5
+  reqs=10
+
+echo -n "$query_size "
+  grep -v main three_phase_composable_logs/axcore_inp_querysize_${query_size}.log \
+    | grep -v info \
+    | grep -v RPS \
+    | awk "\
+      /PreProcFunc Mean/{printf(\" %s \", \$5 );} \
+      /OffloadTax Mean/{printf(\"%s \", \$5);  } \
+      /AxFunc Mean/{printf(\"%s \", \$5);} \
+      /PostProcFunc Mean/{printf(\"%s\n\", \$5);} \
+      "
+  grep -v main three_phase_composable_logs/gpcore_inp_querysize_${query_size}.log \
+    | grep -v info \
+    | grep -v RPS \
+    | awk "\
+      /PreProcFunc Mean/{printf(\" %s \", \$5 );} \
+      /OffloadTax Mean/{printf(\"%s \", \$5);  } \
+      /AxFunc Mean/{printf(\"%s \", \$5);} \
+      /PostProcFunc Mean/{printf(\"%s\n\", \$5);} \
+      "
+
+done
 # [ info] alloc wq 0 shared size 128 addr 0x7f46d3d28000 batch sz 0x400 xfer sz 0x80000000
 # PreProcFunc Mean: 2559 Median: 2375 Stddev: 593.278181
 # OffloadTax Mean: 63 Median: 63 Stddev: 2.236068

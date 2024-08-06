@@ -694,13 +694,13 @@ void axcore_axcore_allocator(
 
     /* ax func 1 outp */
     max_ax_func_1_output_size = get_compress_bound(initial_payload_size); /* in case compress */
-    off_args[i]->pre_proc_output = (void *)malloc(max_ax_func_1_output_size);
+    off_args[i]->pre_proc_output = (void *)aligned_alloc(4096, max_ax_func_1_output_size);
     /* write prefault */
     write_prefault(off_args[i]->pre_proc_output, max_ax_func_1_output_size);
 
     /* ax func 2 outp */
     off_args[i]->ax_func_input_size = initial_payload_size; /* only user is decompress and is therefore equal */
-    off_args[i]->ax_func_output = (void *)malloc(max_axfunc_output_size);
+    off_args[i]->ax_func_output = (void *)aligned_alloc(4096, max_axfunc_output_size);
     /*write prefault */
     write_prefault(off_args[i]->ax_func_output, max_axfunc_output_size);
 

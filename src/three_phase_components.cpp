@@ -41,16 +41,16 @@ void three_func_allocator(
     input_generator(initial_payload_size,
       &(off_args[i]->pre_proc_input), &(off_args[i]->pre_proc_input_size));
     max_pre_proc_output_size = get_compress_bound(initial_payload_size);
-    off_args[i]->pre_proc_output = (void *)malloc(max_pre_proc_output_size);
+    off_args[i]->pre_proc_output = (void *)aligned_alloc(4096, max_pre_proc_output_size);
 
-    off_args[i]->ax_func_output = (void *)malloc(max_axfunc_output_size);
+    off_args[i]->ax_func_output = (void *)aligned_alloc(4096, max_axfunc_output_size);
     /*write prefault */
     for(int j = 0; j < max_axfunc_output_size; j+=4096){
       ((char *)off_args[i]->ax_func_output)[j] = 0;
     }
     off_args[i]->max_axfunc_output_size = max_axfunc_output_size;
 
-    off_args[i]->post_proc_output = (void *)malloc(max_post_proc_output_size);
+    off_args[i]->post_proc_output = (void *)aligned_alloc(4096, max_post_proc_output_size);
     off_args[i]->max_post_proc_output_size = max_post_proc_output_size;
     off_args[i]->post_proc_input_size = expected_ax_output_size;
 
