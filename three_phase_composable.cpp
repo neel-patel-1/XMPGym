@@ -919,7 +919,7 @@ int main(int argc, char **argv){
 
       break;
     case AX_AX:
-      input_gen = gen_plaintext_request;
+      input_gen = gen_compressed_request;
 
       blocking_breakdown_fn = memcpy_decomp_axcore_axcore_stamped;
 
