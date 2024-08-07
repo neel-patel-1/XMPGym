@@ -1058,6 +1058,93 @@ void memcpy_decomp_gpcore_axcore_stamped(fcontext_transfer_t arg)
   complete_request_and_switch_to_scheduler(arg);
 }
 
+template <typename pre_proc_fn,
+  typename aecs_prep_desc_fn, typename submit_desc_fn, typename post_offload_fn,
+  typename desc_t, typename comp_record_t, typename ax_handle_t, typename aecs_ptr_t,
+  typename post_proc_fn,
+  typename preempt_signal_t>
+static inline void gpcore_iaa_aecs_axcore_gpcore_three_phase(
+  preempt_signal_t sig, fcontext_transfer_t arg,
+  pre_proc_fn pre_proc_func, void *pre_proc_input, void *pre_proc_output, int pre_proc_input_size,
+  aecs_prep_desc_fn prep_func, submit_desc_fn submit_func, post_offload_fn post_offload_func,
+  comp_record_t *comp, desc_t *desc,  aecs_ptr_t *aecs_buf, ax_handle_t *ax,
+  void *ax_func_output, int max_axfunc_output_size,
+  post_proc_fn post_proc_func, void *post_proc_output, int post_proc_input_size, int max_post_proc_output_size,
+  uint64_t *ts0, uint64_t *ts1, uint64_t *ts2, uint64_t *ts3, uint64_t *ts4, int idx
+  )
+{
+  int preproc_output_size, ax_input_size;
+  void *ax_func_input;
+  void *post_proc_input;
+
+  ts0[idx] = sampleCoderdtsc();
+  pre_proc_func(pre_proc_input, pre_proc_output, pre_proc_input_size, &preproc_output_size);
+  LOG_PRINT(LOG_DEBUG, "PreProcOutputSize: %d\n", preproc_output_size);
+
+  ax_input_size = preproc_output_size;
+  ax_func_input = pre_proc_output;
+
+  ts1[idx] = sampleCoderdtsc();
+  prep_func(desc, (uint64_t)ax_func_input, (uint64_t)aecs_buf,
+    (uint64_t)ax_func_output, (uint64_t)comp, ax_input_size);
+  submit_func(ax, desc);
+
+  ts2[idx] = sampleCoderdtsc();
+  post_offload_func(comp);
+  if(comp->status != COMP_STATUS_COMPLETED){
+    LOG_PRINT(LOG_ERR, "Error: %d\n", comp->status);
+  }
+  LOG_PRINT(LOG_DEBUG, "AXFuncOutputSize: %d\n", post_proc_input_size);
+  LOG_PRINT(LOG_VERBOSE, "AXFuncOutput: %s \n", (char *)ax_func_output);
+
+  ts3[idx] = sampleCoderdtsc();
+  post_proc_input = ax_func_output;
+  post_proc_func(post_proc_input, post_proc_output, post_proc_input_size, &max_post_proc_output_size);
+  LOG_PRINT(LOG_DEBUG, "PostProcOutputSize: %d\n", max_post_proc_output_size);
+  ts4[idx] = sampleCoderdtsc();
+
+  return;
+}
+
+void memcpy_comp_gpcore_axcore_stamped(fcontext_transfer_t arg)
+{
+  timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
+
+  void *pre_proc_input = args->pre_proc_input;
+  void *pre_proc_output = args->pre_proc_output;
+  int pre_proc_input_size = args->pre_proc_input_size;
+
+  void *ax_func_output = args->ax_func_output;
+  int max_axfunc_output_size = args->max_axfunc_output_size;
+
+  void *post_proc_output = args->post_proc_output;
+  int post_proc_input_size = args->post_proc_input_size;
+  int max_post_proc_output_size = args->max_post_proc_output_size;
+
+  ax_comp *comp = args->comp;
+  struct hw_desc *desc = args->desc;
+  void *aecs = args->aecs;
+
+  int id = args->id;
+
+  uint64_t *ts0 = args->ts0;
+  uint64_t *ts1 = args->ts1;
+  uint64_t *ts2 = args->ts2;
+  uint64_t *ts3 = args->ts3;
+  uint64_t *ts4 = args->ts4;
+
+  gpcore_iaa_aecs_axcore_gpcore_three_phase(
+    NULL, arg,
+    gpcore_do_memcpy, pre_proc_input, pre_proc_output, pre_proc_input_size,
+    prepare_iaa_compress_desc_and_aecs_with_preallocated_comp, blocking_iaa_submit, spin_on,
+    comp, desc, aecs, iaa,
+    ax_func_output, max_axfunc_output_size,
+    null_fn, post_proc_output, post_proc_input_size, max_post_proc_output_size,
+    ts0, ts1, ts2, ts3, ts4, id  );
+
+  complete_request_and_switch_to_scheduler(arg);
+}
+
 void deser_decomp_hash_gpcore(fcontext_transfer_t arg){
   timed_offload_request_args *args = (timed_offload_request_args *)arg.data;
 
@@ -1213,6 +1300,19 @@ int main(int argc, char **argv){
       do_gpcore = false;
       do_thrpt = false;
       break;
+    case GP_AX:
+      input_gen = gen_plaintext_request;
+
+      blocking_breakdown_fn = memcpy_comp_gpcore_axcore_stamped;
+
+      allocator_fn = three_func_allocator;
+      stamped_offload_args_free_fn = free_three_phase_stamped_args;
+      final_output_size = payload_size;
+
+      do_yielding = false;
+      do_thrpt = false;
+      do_gpcore = false;
+      break;
 
     case AX_GP:
       input_gen = gen_compressed_request;
@@ -1234,19 +1334,6 @@ int main(int argc, char **argv){
 
       allocator_fn = null_two_func_allocator;
       stamped_offload_args_free_fn = free_null_two_phase;
-      final_output_size = payload_size;
-
-      do_yielding = false;
-      do_thrpt = false;
-      do_gpcore = false;
-      break;
-    case GP_AX:
-      input_gen = gen_compressed_request;
-
-      blocking_breakdown_fn = memcpy_decomp_gpcore_axcore_stamped;
-
-      allocator_fn = three_func_allocator;
-      stamped_offload_args_free_fn = free_three_phase_stamped_args;
       final_output_size = payload_size;
 
       do_yielding = false;
