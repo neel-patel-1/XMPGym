@@ -745,18 +745,18 @@ void axcore_axcore_compress_aecs_allocator(
     /* no write prefault needed, the input generator should touch */
 
     /* ax func 1 outp */
-    max_ax_func_1_output_size = get_compress_bound(initial_payload_size); /* in case compress */
-    off_args[i]->pre_proc_output = (void *)aligned_alloc(4096, max_ax_func_1_output_size);
+    max_ax_func_1_output_size = IAA_COMPRESS_MAX_DEST_SIZE; /* in case compress */
+    off_args[i]->pre_proc_output = (void *)aligned_alloc(32, IAA_COMPRESS_MAX_DEST_SIZE);
     /* write prefault */
     write_prefault(off_args[i]->pre_proc_output, max_ax_func_1_output_size);
 
     /* ax func 2 outp */
-    max_ax_func_2_output_size = get_compress_bound(initial_payload_size); /* in case compress */
+    max_ax_func_2_output_size = IAA_COMPRESS_MAX_DEST_SIZE; /* in case compress */
     off_args[i]->ax_func_input_size = expected_ax_func_1_output_size; /* only user is compress after memcpy, so should be equal to expected ax1 output which should equal initial payload*/
-    off_args[i]->ax_func_output = (void *)aligned_alloc(4096, max_ax_func_2_output_size);
-    off_args[i]->max_axfunc_output_size = max_ax_func_2_output_size; /* incase compress*/
+    off_args[i]->ax_func_output = (void *)aligned_alloc(32, IAA_COMPRESS_MAX_DEST_SIZE);
+    off_args[i]->max_axfunc_output_size = IAA_COMPRESS_MAX_DEST_SIZE; /* incase compress*/
     /*write prefault */
-    write_prefault(off_args[i]->ax_func_output, max_axfunc_output_size);
+    write_prefault(off_args[i]->ax_func_output, IAA_COMPRESS_MAX_DEST_SIZE);
 
     off_args[i]->comp = &comps[i];
 
@@ -769,6 +769,8 @@ void axcore_axcore_compress_aecs_allocator(
     off_args[i]->desc = (struct hw_desc *)malloc(sizeof(struct hw_desc));
     off_args[i]->aecs =
       (void *)aligned_alloc(32, IAA_COMPRESS_SRC2_SIZE);
+
+    memset_pattern(off_args[i]->aecs, 0, IAA_COMPRESS_SRC2_SIZE);
   }
   *offload_args = off_args;
 }
@@ -862,8 +864,6 @@ void memcpy_decomp_axcore_axcore_stamped(fcontext_transfer_t arg){
   uint64_t *ts2 = args->ts2;
   uint64_t *ts3 = args->ts3;
   uint64_t *ts4 = args->ts4;
-
-  LOG_PRINT(LOG_VERBOSE, "ax_func_1_input_size: %d ax_func_2_input_size: %d\n", ax_func_1_input_size, ax_func_2_input_size);
 
   axcore_axcore_two_phase_timed(
     prepare_dsa_memcpy_desc_with_preallocated_comp, blocking_dsa_submit, spin_on,
@@ -968,8 +968,6 @@ void memcpy_comp_axcore_axcore_stamped(fcontext_transfer_t arg){
   uint64_t *ts2 = args->ts2;
   uint64_t *ts3 = args->ts3;
   uint64_t *ts4 = args->ts4;
-
-  LOG_PRINT(LOG_VERBOSE, "ax_func_1_input_size: %d ax_func_2_input_size: %d\n", ax_func_1_input_size, ax_func_2_input_size);
 
   axcore_iaa_aecs_axcore_two_phase(
     prepare_dsa_memcpy_desc_with_preallocated_comp, blocking_dsa_submit, spin_on,

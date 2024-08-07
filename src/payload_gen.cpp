@@ -10,7 +10,7 @@ std::string gen_compressible_string(const char *append_string, int input_size){
 }
 
 char *gen_compressible_buf(const char *append_string, int input_size){
-  char *payload = (char *)malloc(input_size);
+  char *payload = (char *)aligned_alloc(32, input_size);
   int append_strlen = strlen(append_string);
   int cpylen = append_strlen;
   int i=0;
