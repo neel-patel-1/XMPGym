@@ -718,7 +718,7 @@ void axcore_axcore_allocator(
   *offload_args = off_args;
 }
 
-void axcore_compress_aecs_axcore_allocator(
+void axcore_axcore_compress_aecs_allocator(
   int total_requests,
   int initial_payload_size,
   int max_axfunc_output_size,
@@ -734,6 +734,7 @@ void axcore_compress_aecs_axcore_allocator(
     (timed_offload_request_args **)malloc(total_requests * sizeof(timed_offload_request_args *));
 
   int max_ax_func_1_output_size;
+  int max_ax_func_2_output_size;
   int expected_ax_func_1_output_size = initial_payload_size;
 
   for(int i = 0; i < total_requests; i++){
@@ -741,8 +742,7 @@ void axcore_compress_aecs_axcore_allocator(
 
     input_generator(initial_payload_size,
       &(off_args[i]->pre_proc_input), &(off_args[i]->pre_proc_input_size)); /* ax func 1 inp */
-    /* write prefault */
-    // write_prefault(off_args[i]->pre_proc_input, initial_payload_size);
+    /* no write prefault needed, the input generator should touch */
 
     /* ax func 1 outp */
     max_ax_func_1_output_size = get_compress_bound(initial_payload_size); /* in case compress */
@@ -751,8 +751,10 @@ void axcore_compress_aecs_axcore_allocator(
     write_prefault(off_args[i]->pre_proc_output, max_ax_func_1_output_size);
 
     /* ax func 2 outp */
-    off_args[i]->ax_func_input_size = initial_payload_size; /* only user is decompress and is therefore equal */
-    off_args[i]->ax_func_output = (void *)aligned_alloc(4096, max_axfunc_output_size);
+    max_ax_func_2_output_size = get_compress_bound(initial_payload_size); /* in case compress */
+    off_args[i]->ax_func_input_size = expected_ax_func_1_output_size; /* only user is compress after memcpy, so should be equal to expected ax1 output which should equal initial payload*/
+    off_args[i]->ax_func_output = (void *)aligned_alloc(4096, max_ax_func_2_output_size);
+    off_args[i]->max_axfunc_output_size = max_ax_func_2_output_size; /* incase compress*/
     /*write prefault */
     write_prefault(off_args[i]->ax_func_output, max_axfunc_output_size);
 
@@ -771,7 +773,7 @@ void axcore_compress_aecs_axcore_allocator(
   *offload_args = off_args;
 }
 
-void free_axcore_compress_aecs_axcore(
+void free_axcore_axcore_compress_aecs(
   int total_requests,
   timed_offload_request_args ***off_args
 ){
@@ -880,7 +882,7 @@ void memcpy_decomp_axcore_axcore_stamped(fcontext_transfer_t arg){
 
 template <typename prep_desc_fn, typename aecs_prep_desc_fn, typename submit_desc_fn, typename post_offload_fn,
   typename desc_t, typename comp_record_t, typename aecs_ptr_t, typename ax_handle_t >
-static inline void axcore_standard_iaa_aecs_axcore_two_phase(
+static inline void axcore_iaa_aecs_axcore_two_phase(
   prep_desc_fn prep_func_1, submit_desc_fn submit_func_1, post_offload_fn post_offload_func_1,
   void *ax_func_1_input, void *ax_func_1_output, int ax_func_1_input_size,
   ax_handle_t *ax_1,
@@ -922,6 +924,26 @@ static inline void axcore_standard_iaa_aecs_axcore_two_phase(
   return;
 }
 
+void prepare_iaa_compress_desc_and_aecs_with_preallocated_comp(
+  struct hw_desc *hw, uint64_t src1, uint64_t src2, uint64_t dst1,
+  uint64_t comp, uint64_t xfer_size )
+{
+  memset(hw, 0, sizeof(struct hw_desc));
+  hw->flags = 0x5000eUL;
+  hw->opcode = 0x43;
+  hw->src_addr = src1;
+  hw->dst_addr = dst1;
+  hw->xfer_size = xfer_size;
+
+  memcpy((void *)src2, iaa_compress_aecs, IAA_COMPRESS_AECS_SIZE);
+
+  memset((void *)comp, 0, sizeof(ax_comp));
+  hw->completion_addr = comp;
+  hw->iax_compr_flags = 14;
+  hw->iax_src2_addr = src2;
+  hw->iax_src2_xfer_size = IAA_COMPRESS_AECS_SIZE;
+  hw->iax_max_dst_size = IAA_COMPRESS_MAX_DEST_SIZE;
+}
 
 
 void memcpy_comp_axcore_axcore_stamped(fcontext_transfer_t arg){
@@ -949,11 +971,11 @@ void memcpy_comp_axcore_axcore_stamped(fcontext_transfer_t arg){
 
   LOG_PRINT(LOG_VERBOSE, "ax_func_1_input_size: %d ax_func_2_input_size: %d\n", ax_func_1_input_size, ax_func_2_input_size);
 
-  axcore_standard_iaa_aecs_axcore_two_phase(
+  axcore_iaa_aecs_axcore_two_phase(
     prepare_dsa_memcpy_desc_with_preallocated_comp, blocking_dsa_submit, spin_on,
     ax_func_1_input, ax_func_1_output, ax_func_1_input_size,
     dsa,
-    prepare_iaa_compress_desc_with_preallocated_comp, blocking_iaa_submit, spin_on,
+    prepare_iaa_compress_desc_and_aecs_with_preallocated_comp, blocking_iaa_submit, spin_on,
     ax_func_2_output, max_axfunc_2_output_size, ax_func_2_input_size,
     iaa,
     comp, desc, aecs,
@@ -1185,8 +1207,8 @@ int main(int argc, char **argv){
 
       blocking_breakdown_fn = memcpy_comp_axcore_axcore_stamped;
 
-      allocator_fn = axcore_compress_aecs_axcore_allocator;
-      stamped_offload_args_free_fn = free_axcore_compress_aecs_axcore;
+      allocator_fn = axcore_axcore_compress_aecs_allocator;
+      stamped_offload_args_free_fn = free_axcore_axcore_compress_aecs;
       final_output_size = payload_size;
 
       do_yielding = false;
