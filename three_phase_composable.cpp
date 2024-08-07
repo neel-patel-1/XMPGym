@@ -766,9 +766,24 @@ void axcore_compress_aecs_axcore_allocator(
     off_args[i]->id = i;
     off_args[i]->desc = (struct hw_desc *)malloc(sizeof(struct hw_desc));
     off_args[i]->aecs =
-      (aecs_ptr_t *)aligned_alloc(32, IAA_COMPRESS_SRC2_SIZE);
+      (void *)aligned_alloc(32, IAA_COMPRESS_SRC2_SIZE);
   }
   *offload_args = off_args;
+}
+
+void free_axcore_compress_aecs_axcore(
+  int total_requests,
+  timed_offload_request_args ***off_args
+){
+  for(int i = 0; i < total_requests; i++){
+    free((*off_args)[i]->pre_proc_input);
+    free((*off_args)[i]->pre_proc_output);
+    free((*off_args)[i]->ax_func_output);
+    free((*off_args)[i]->desc);
+    free((*off_args)[i]->aecs);
+    free((*off_args)[i]);
+  }
+  free(*off_args);
 }
 
 
@@ -1170,8 +1185,8 @@ int main(int argc, char **argv){
 
       blocking_breakdown_fn = memcpy_comp_axcore_axcore_stamped;
 
-      allocator_fn = axcore_axcore_allocator;
-      stamped_offload_args_free_fn = free_axcore_axcore;
+      allocator_fn = axcore_compress_aecs_axcore_allocator;
+      stamped_offload_args_free_fn = free_axcore_compress_aecs_axcore;
       final_output_size = payload_size;
 
       do_yielding = false;
